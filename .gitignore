@@ -1,0 +1,7 @@
+__pycache__
+*.scada
+.vscode
+plugins
+build
+dist
+pysca.egg-info

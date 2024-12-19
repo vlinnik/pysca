@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0","git-versioner>=6.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.git-versioner]
+snapshot = true
+short = true
+desc = true
+use_git_versioner="short,desc,snapshot"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+pysca = ["**/*.scada", "**/*.yaml", "**/*.ui", "**/LICENCE","**/README.md", "**/*.toml"]
+
+[project]
+dynamic = ["version"]
+name = "pysca"
+authors = [
+  { name="Linnik V.V.", email="vlinnik@mail.ru" },
+]
+description = "Framework for developing Python+Qt GUI"
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/vlinnik/pysca"
+"Bug Tracker" = "https://github.com/vlinnik/pysca/issues"
