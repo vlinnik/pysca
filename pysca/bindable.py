@@ -148,11 +148,12 @@ class Property():
 
 class Expressions(dict):
     class Expression(Property,dict):
-        def __init__(self, ctx, source: str) -> None:
+        def __init__(self, ctx, source: str, locals = None) -> None:
             super().__init__( )
             self.value = None
             self.ctx = ctx
             self.source = source
+            self.locals = locals
             self.crossreferences = []
 
         def isDependsOn(self,key:str):
@@ -168,6 +169,9 @@ class Expressions(dict):
             return ret
         
         def __getitem__(self, __key):
+            if self.locals and __key in self.locals:
+                return self.locals[__key]
+            
             if __key not in self.ctx:
                 raise KeyError(__key)
             prop = self.ctx [__key]
@@ -204,7 +208,7 @@ class Expressions(dict):
         
         return super().__getattribute__(name)
         
-    def create(self,source: str):
-        ret = self.Expression( self, source )
-        ret.evaluate()
+    def create(self,source: str,locals: dict = None):
+        ret = self.Expression( self, source, locals = locals )
+        ret.evaluate(  )
         return ret

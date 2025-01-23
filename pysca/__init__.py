@@ -254,14 +254,14 @@ class _pysca():
                             helpers[animation.objectID] = QObjectDynamicPropertyHelper(target)
                         helpers[animation.objectID].mapping( animation.prop,self.ctx[code] )
                 else:
-                    expression = self.ctx.create(code)
+                    expression = self.ctx.create(code,locals=ctx)
                     ani = QObjectPropertyBinding.create( target, animation.prop, expression ,readOnly=True)
                     self.animations.append( ani )
                     ani.update(expression.value)
                     
                     
             except Exception as e:
-                log.error('ошибка при настройки анимации: объект(%s), свойство(%s), выражение(%s)' % (animation.objectID,animation.prop,animation.data) )
+                log.error('ошибка при настройки анимации: объект(%s), свойство(%s), выражение(%s): %s' % (animation.objectID,animation.prop,animation.data,e) )
             
     def signals(self, obj, objectID: str = None):
         from .qtac import QObjectSignalHandler
@@ -287,7 +287,7 @@ class _pysca():
             except Exception as e:
                 log.error('error in signal initialization %s(%s)' % (objectID,e) )
                 
-    def window(self,t:type | str,objectID:str = None,**kwargs)->'QWidget':
+    def window(self,t:type | str,objectID:str = None,ctx: dict = None, **kwargs)->'QWidget':
         try:
             from AnyQt import uic
             if isinstance(t,type):
@@ -302,7 +302,7 @@ class _pysca():
                     log.error('failed to load UI-file') 
                     return     
             try:
-                self.animate(w,objectID=objectID)
+                self.animate(w,objectID=objectID,ctx=ctx)
                 self.signals(w,objectID=objectID)
             except exc.SQLAlchemyError as e:
                 log.error('error while initializing animations/signals: %s' % (e._message()))
