@@ -3,12 +3,14 @@ from AnyQt.QtCore import QObject,QResource
 import sys,os,glob,re
 import logging
 import argparse
+import json
 from typing import Any
 from __version__ import version_short as version
 from .bindable import Expressions,Property
+from .utils import LinearScale
 
 #работа с базой конфигурации проекта
-from sqlalchemy import ForeignKey,String,BLOB,Boolean,create_engine,select,or_,exc
+from sqlalchemy import String,Boolean,BLOB,create_engine,select,or_,exc
 from sqlalchemy.orm import Session,DeclarativeBase,Mapped,mapped_column
 
 def console(name: str,level = logging.DEBUG)->logging.Logger:
@@ -68,6 +70,7 @@ class _Variables(_Base):
     address: Mapped[str] = mapped_column(String(128))
     logging: Mapped[bool] = mapped_column(Boolean)
     events: Mapped[bool] = mapped_column(Boolean)
+    properties: Mapped[BLOB] = mapped_column(BLOB)
 
 class _Animations(_Base):
     __tablename__ = "Animations"
@@ -153,6 +156,13 @@ class _pysca():
 
     def start(self,ctx: dict ):
         self._ = ctx
+        
+        for name,dev in self.devices.items():
+            log.debug(f'инициализация источника {name}')
+            for p in self.ctx.values():
+                if p.source == name:
+                    dev.subscribe(p)
+                    
         qApp.exec( )
         
     def config(self,db:str): 
@@ -171,29 +181,29 @@ class _pysca():
         self.session = session = Session(engine)
         vars = select(_Variables).order_by(_Variables.type)
         
-        remote = 0 
-        locals= 0
-
         for var in session.scalars(vars):
-            source = var.source #self.__expand(var.source)
-            if source in self.devices:
-                dev,_ = self.devices[source]
-                # self.var(Subscriber.subscribe(dev,var.address,var.name),var.name)
-                remote+=1
+            p = None
+            
+            if var.type==Property.TYPE_FLOAT:
+                p = self.var(float,var.name)
+                p.filter = LinearScale()
+            elif var.type==Property.TYPE_BOOL:
+                p = self.var(bool,var.name)
+            elif var.type==Property.TYPE_STR:
+                p = self.var(str,var.name)
+            elif var.type==Property.TYPE_INT:
+                p = self.var(int,var.name)
+            elif var.type==Property.TYPE_LONG:
+                p = self.var(int,var.name)
             else:
-                if var.type==2:
-                    self.var(float,var.name)
-                elif var.type==1:
-                    self.var(bool,var.name)
-                elif var.type==3:
-                    self.var(str,var.name)
-                elif var.type==4:
-                    self.var(int,var.name)
-                else:
-                    raise ValueError('Variable %s type %d not supported' % (str(var.name),int(var.type)))
-                locals+=1
-
-        log.debug(f'local variables: {locals}, remote variables {remote}')
+                raise ValueError('Variable %s type %d not supported' % (str(var.name),int(var.type)))
+            
+            p.name = var.name
+            p.source = var.source
+            p.address = var.address
+            p.type = var.type
+            p.properties = json.loads( var.properties )
+            p.config(p.properties)
         
         rcc_dir = os.path.dirname(os.path.abspath(db))
         log.debug(f'searching resource files in {rcc_dir}')
@@ -203,7 +213,7 @@ class _pysca():
             QResource.registerResource(f'{rcc_dir}/{rcc}')
         
     def animate(self,obj, ctx: dict = None,objectID:str = None ):
-        from .qtac import QObjectPropertyBinding
+        from .qtac import QObjectPropertyBinding,QObjectDynamicPropertyHelper
 
         if not self.session:
             return
@@ -217,6 +227,7 @@ class _pysca():
         if objectID not in ctx:
             ctx[objectID] = obj
             
+        helpers = dict[str,QObjectDynamicPropertyHelper]( )
         animations = select(_Animations).where( or_(_Animations.objectID.startswith(objectID+"."),_Animations.objectID==(objectID)) )
         
         for animation in self.session.scalars(animations):
@@ -226,15 +237,28 @@ class _pysca():
                 continue
             code = animation.data
             try:
-                code = re.sub("@(\\w+(\\.\\w+)*)","\\1",code)
+                rd_only = False
+                wr_only = False
+                if re.match("@(\\w+(\\.\\w+)*)",code):
+                    code = re.sub("@(\\w+(\\.\\w+)*)","\\1",code)
+                    rd_only = True
+                if re.match("&(\\w+(\\.\\w+)*)",code):
+                    code = re.sub("&(\\w+(\\.\\w+)*)","\\1",code)
+                    wr_only = True
                 
-                if code in self.ctx:
-                    self.animations.append(QObjectPropertyBinding.create( target, animation.prop, self.ctx[code]))
+                if code in self.ctx and not rd_only:
+                    ani = QObjectPropertyBinding.create( target, animation.prop, self.ctx[code])
+                    self.animations.append(ani)
+                    if ani.dynamic:
+                        if animation.objectID not in helpers:
+                            helpers[animation.objectID] = QObjectDynamicPropertyHelper(target)
+                        helpers[animation.objectID].mapping( animation.prop,self.ctx[code] )
                 else:
                     expression = self.ctx.create(code)
-                    animation = QObjectPropertyBinding.create( target, animation.prop, expression ,readOnly=True)
-                    self.animations.append( animation )
-                    animation.update(expression.value)
+                    ani = QObjectPropertyBinding.create( target, animation.prop, expression ,readOnly=True)
+                    self.animations.append( ani )
+                    ani.update(expression.value)
+                    
                     
             except Exception as e:
                 log.error('ошибка при настройки анимации: объект(%s), свойство(%s), выражение(%s)' % (animation.objectID,animation.prop,animation.data) )

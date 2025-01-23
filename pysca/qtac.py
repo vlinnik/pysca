@@ -1,6 +1,25 @@
-from AnyQt.QtCore import QObject,QMetaObject
+from AnyQt.QtCore import QObject,QMetaObject,QEvent,QDynamicPropertyChangeEvent,cast
+from AnyQt.QtWidgets import QGraphicsBlurEffect
 from typing import Callable
 from .bindable import Property
+
+class QObjectDynamicPropertyHelper(QObject):
+    def __init__(self, parent:QObject = None):
+        super().__init__(parent)
+        self._map = {} 
+        parent.installEventFilter(self)
+    
+    def mapping(self,prop: str, input: callable ):
+        self._map[prop] = input
+    
+    def eventFilter(self, obj, e)->bool:
+        if e.type()==QEvent.Type.DynamicPropertyChange:
+            mp:QDynamicPropertyChangeEvent = cast(e,QDynamicPropertyChangeEvent)
+            name = mp.propertyName().data().decode()
+            if name in self._map:
+                self._map[name]( self.parent().property(name))
+            
+        return super().eventFilter(obj, e)
 
 class QObjectPropertyBinding():
     """QObjectPropertyBinding предназначен для анимирования свойств QObject-derived объектов с помощью callback или bindable.Property
@@ -23,18 +42,24 @@ class QObjectPropertyBinding():
             clean (callable, optional): Обратная display. Defaults to None.
         """
         self.connections = []
+        self.prop = prop
         mo = obj.metaObject()
         mp = mo.property( mo.indexOfProperty(prop) )
-        if obj.inherits('QAbstractButton') and prop=='down':
+        if input and obj.inherits('QAbstractButton') and prop=='down':
             self.connections.append(obj.pressed.connect( lambda: input(True) ))
             self.connections.append(obj.released.connect( lambda: input(False) ))
-        if obj.inherits('QLineEdit') and prop=='text':
+        elif input and obj.inherits('QLineEdit') and prop=='text':
             self.connections.append( obj.editingFinished.connect( lambda: input(obj.text()) ) )
         elif input and mp.hasNotifySignal():
             self.connections.append( getattr(obj,mp.notifySignal().name().data().decode()).connect( input ) )
-        
+
+        self.dynamic = False
+        if input and not mp.isValid() and prop in obj.dynamicPropertyNames():
+            self.dynamic = True
+
         self.mp = mp
         self.obj = obj
+        self._isWidget = obj.inherits('QWidget') 
 
         if display:
             self.clean = clean
@@ -50,7 +75,14 @@ class QObjectPropertyBinding():
         Args:
             value (Any): новое значения для свойства
         """
-        self.mp.write(self.obj,value)
+        if self._isWidget:
+            if value is None and not self.obj.graphicsEffect(): self.obj.setGraphicsEffect( QGraphicsBlurEffect( self.obj) )
+            if value is not None and self.obj.graphicsEffect() is not None: self.obj.setGraphicsEffect( None )
+            
+        if self.mp.isValid():
+            self.mp.write(self.obj,value)
+        elif self.dynamic:
+            self.obj.setProperty(self.prop,value)
         
     def cleanup(self):
         """После вызова cleanup QObjectPropertyBinder-instance можно удалять. 
