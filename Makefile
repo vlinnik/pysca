@@ -3,6 +3,7 @@ clean:
 	@find ./ -iname __pycache__  | xargs rm -rf
 
 package:
+	rm -rfd build/*
 	python -m build --wheel
 	pip install ./dist/pysca-`git-versioner --short --python`-py3-none-any.whl --force-reinstall
 

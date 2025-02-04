@@ -1,5 +1,5 @@
 from AnyQt.QtWidgets import QApplication
-from AnyQt.QtCore import QObject,QResource
+from AnyQt.QtCore import QObject,QResource,QVariant
 import sys,os,glob,re
 import logging
 import argparse
@@ -202,7 +202,10 @@ class _pysca():
             p.source = var.source
             p.address = var.address
             p.type = var.type
-            p.properties = json.loads( var.properties )
+            try:
+                p.properties = json.loads( var.properties )
+            except:
+                pass
             p.config(p.properties)
         
         rcc_dir = os.path.dirname(os.path.abspath(db))
@@ -214,6 +217,7 @@ class _pysca():
         
     def animate(self,obj, ctx: dict = None,objectID:str = None ):
         from .qtac import QObjectPropertyBinding,QObjectDynamicPropertyHelper
+        from .flexeffect import FlexEffect
 
         if not self.session:
             return
@@ -235,6 +239,10 @@ class _pysca():
             if target is None:
                 log.error('анимируемый объект(%s) не найден' % (animation.objectID))
                 continue
+            
+            if target.isWidgetType() and not target.property(b'_effect'):
+                target.setProperty(b'_effect',QVariant(FlexEffect(target)))
+                            
             code = animation.data
             try:
                 rd_only = False
@@ -246,7 +254,7 @@ class _pysca():
                     code = re.sub("&(\\w+(\\.\\w+)*)","\\1",code)
                     wr_only = True
                 
-                if code in self.ctx and not rd_only:
+                if code in self.ctx and not rd_only and not animation.prop.startswith('__effect_'):
                     ani = QObjectPropertyBinding.create( target, animation.prop, self.ctx[code])
                     self.animations.append(ani)
                     if ani.dynamic:
@@ -255,7 +263,12 @@ class _pysca():
                         helpers[animation.objectID].mapping( animation.prop,self.ctx[code] )
                 else:
                     expression = self.ctx.create(code,locals=ctx)
-                    ani = QObjectPropertyBinding.create( target, animation.prop, expression ,readOnly=True)
+                    if not animation.prop.startswith('__effect_'):
+                        ani = QObjectPropertyBinding.create( target, animation.prop, expression ,readOnly=True)
+                    else:
+                        effect = target.property(b'_effect')
+                        ani = QObjectPropertyBinding.create( effect, str(animation.prop)[9:], expression ,readOnly=True)
+                        
                     self.animations.append( ani )
                     ani.update(expression.value)
                     

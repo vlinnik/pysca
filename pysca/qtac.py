@@ -1,5 +1,6 @@
 from AnyQt.QtCore import QObject,QMetaObject,QEvent,QDynamicPropertyChangeEvent,cast
 from AnyQt.QtWidgets import QGraphicsBlurEffect
+from .flexeffect import FlexEffect
 from typing import Callable
 from .bindable import Property
 
@@ -76,8 +77,10 @@ class QObjectPropertyBinding():
             value (Any): новое значения для свойства
         """
         if self._isWidget:
-            if value is None and not self.obj.graphicsEffect(): self.obj.setGraphicsEffect( QGraphicsBlurEffect( self.obj) )
-            if value is not None and self.obj.graphicsEffect() is not None: self.obj.setGraphicsEffect( None )
+            effect:FlexEffect = self.obj.property('_effect')
+            if effect:
+                if value is None: effect.push( QGraphicsBlurEffect(self.obj)  )
+                if value is not None: effect.pop()
             
         if self.mp.isValid():
             self.mp.write(self.obj,value)
