@@ -27,7 +27,7 @@ class LinearScale(Converter):
         if self.rawHigh is not None and value > self.rawHigh:
             value = self.rawHigh
         if self.rawLow is None or self.rawHigh is None or self.rawLow == self.rawHigh:
-            return value
+            return round(value,self._decimals)
         if self.euLow is not None and self.euHigh is not None and self.euLow != self.euHigh:
             value = (value - self.rawLow)/(self.rawHigh-self.rawLow)*(self.euHigh - self.euLow)+self.euLow
         
@@ -54,28 +54,43 @@ class LinearScale(Converter):
         return self._euLow
     @euLow.setter
     def euLow(self,low:float):
-        self._euLow = float(low)
+        try:
+            self._euLow = float(low)
+        except:
+            pass
     @property
     def euHigh(self)->float:
         return self._euHigh
     @euHigh.setter
     def euHigh(self,high:float):
-        self._euHigh = float(high)
+        try:
+            self._euHigh = float(high)
+        except:
+            pass
     @property
     def rawLow(self)->float:
         return self._rawLow
     @rawLow.setter
     def rawLow(self,low:float):
-        self._rawLow = float(low)
+        try:
+            self._rawLow = float(low)
+        except:
+            pass
     @property
     def rawHigh(self)->float:
         return self._rawHigh
     @rawHigh.setter
     def rawHigh(self,high:float):
-        self._rawHigh = float(high)
+        try:
+            self._rawHigh = float(high)
+        except:
+            pass
     @property
     def decimals(self):
         return self._decimals
     @decimals.setter
     def decimals(self,decimals):
-        self._decimals = decimals
+        try:
+            self._decimals = decimals
+        except:
+            pass

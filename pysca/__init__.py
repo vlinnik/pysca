@@ -90,7 +90,10 @@ class _Signals(_Base):
 
 log = console('pysca')
 log.info(f'initializing pysca {version}')
-qApp = QApplication(sys.argv)
+if not QApplication.instance():
+    qApp = QApplication(sys.argv)
+else:
+    qApp = QApplication.instance()
 
 parser = argparse.ArgumentParser(
                     prog='PYSCA Project',
@@ -205,7 +208,7 @@ class _pysca():
             try:
                 p.properties = json.loads( var.properties )
             except:
-                pass
+                p.properties = { }
             p.config(p.properties)
         
         rcc_dir = os.path.dirname(os.path.abspath(db))
@@ -293,12 +296,17 @@ class _pysca():
             try:
                 target = self.__findChild( obj,signal.objectID.split('.') )
                 if target:
-                    self.slots.append(QObjectSignalHandler(target,signal.signal,signal.data,self.context,self.ctx))
+                    code = signal.data
+                    if re.match("@(\\w+(\\.\\w+)*)",code):
+                        code = re.sub("@(\\w+(\\.\\w+)*)","\\1.value",code)
+                    self.slots.append(QObjectSignalHandler(target,signal.signal,code,self.context,self.ctx))
                 else:
-                    log.warning(f'no {signal.objectID} in {obj.objectName()}')
+                    log.error('для события нет объекта: объект(%s), событие(%s), выражение(%s)' % (signal.objectID,signal.signal,signal.data) )
+                    # log.warning(f'no {signal.objectID} in {obj.objectName()}')
                     
             except Exception as e:
-                log.error('error in signal initialization %s(%s)' % (objectID,e) )
+                log.error('ошибка при настройке события: объект(%s), событие(%s), выражение(%s): %s' % (signal.objectID,signal.signal,signal.data,e) )
+                # log.error('error in signal initialization %s(%s)' % (objectID,e) )
                 
     def window(self,t:type | str,objectID:str = None,ctx: dict = None, **kwargs)->'QWidget':
         try:

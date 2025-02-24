@@ -9,11 +9,11 @@ except:
     from AnyQt.QtCore import  pyqtEnum
 
 class _AffineEffect(QGraphicsEffect):
-    def __init__(self, angle:float=0.0, parent = ...):
+    def __init__(self, angle:float=None, parent = ...):
         super().__init__(parent)
         self._angle = angle
-        self._moveX = 0 
-        self._moveY = 0
+        self._scale = ()
+        self._move = ()
         
     def rotate(self,angle: float):
         if self._angle == angle:
@@ -21,13 +21,23 @@ class _AffineEffect(QGraphicsEffect):
         self._angle = angle
         self.update( )
     
+    def move(self,sx:float=None,sy:float=None):
+        if not sx and not sy:
+            self._move = ()
+        else:            
+            self._move = ( sx if sx else 0, sy if sy else 0 )
+        self.update( )
+    
     def moveX(self,offset:float):
-        self._moveX = offset
-        self.update()
+        self.move( sx=offset )
         
     def moveY(self,offset:float):
-        self._moveY = offset
-        self.update()
+        self.move( sy=offset)
+        
+    def scale(self,x: float=None,y:float=None ):
+        if not x and not y:
+            self._scale=()
+        self._scale = (x if x else 1,y if y else 1)
     
     def draw(self, painter):
         pixmap,offset = self.sourcePixmap (Qt.CoordinateSystem.LogicalCoordinates)
@@ -36,10 +46,21 @@ class _AffineEffect(QGraphicsEffect):
         painter.setRenderHint(painter.RenderHint.SmoothPixmapTransform,True)
         transform = painter.worldTransform()
         
-        transform.translate( pixmap.width()/2,pixmap.height()/2)
-        transform.rotate(self._angle)
-        transform.translate( -pixmap.width()/2, -pixmap.height()/2 )
-        transform.translate(self._moveX,self._moveY)
+        if self._angle is not None or self._scale:
+            transform.translate( pixmap.width()/2,pixmap.height()/2)
+            
+        #rotate, origin center 
+        if self._angle is not None:
+            transform.rotate(self._angle)
+        #scale
+        if self._scale: 
+            transform.scale(self._scale[0],self._scale[1])
+        #move        
+        if self._move: 
+            transform.translate(self._move[0],self._move[1])
+            
+        if self._angle is not None or self._scale:
+            transform.translate( -pixmap.width()/2, -pixmap.height()/2 )
         
         painter.setWorldTransform(transform,False)
         painter.drawPixmap(offset,pixmap)
@@ -53,6 +74,8 @@ class EffectType(Enum):
     Rotate = 5
     MoveX = 6
     MoveY = 7
+    MirrorX = 8
+    MirrorY = 9
 
 class FlexEffect(QObject):
     EffectType = EffectType
@@ -138,7 +161,7 @@ class FlexEffect(QObject):
             self.target.setGraphicsEffect(QGraphicsColorizeEffect(self))
         elif effect==EffectType.Glow:
             self.target.setGraphicsEffect(QGraphicsDropShadowEffect(self))
-        elif effect==EffectType.Rotate or effect==EffectType.MoveX or effect==EffectType.MoveY:
+        elif effect==EffectType.Rotate or effect==EffectType.MoveX or effect==EffectType.MoveY or effect==EffectType.MirrorX or effect==EffectType.MirrorY:
             self.target.setGraphicsEffect(_AffineEffect(parent=self))
             
         self._apply( )
@@ -206,6 +229,12 @@ class FlexEffect(QObject):
         if self._effect==EffectType.MoveY:
             moveY:_AffineEffect = geffect
             moveY.moveY(strength)
+        if self._effect==EffectType.MirrorX:
+            scale:_AffineEffect = geffect
+            scale.scale( x=-1 )
+        if self._effect==EffectType.MirrorY:
+            scale:_AffineEffect = geffect
+            scale.scale( y=-1 )
                         
         geffect.setEnabled(self._active or self._deactivating)
             
@@ -221,8 +250,8 @@ if __name__=='__main__':
     win = QWidget( )
     target = QCheckBox('activate',parent=win)
     flex = FlexEffect( target )
-    flex.effect = EffectType.MoveX
-    flex.strength = 20
+    flex.set_effect(EffectType.MirrorX)
+    flex.set_strength(1)
     target.setChecked(flex.get_active( ))
     target.toggled.connect(flex.set_active)
     win.show( )

@@ -1,4 +1,7 @@
 from typing import Any
+from .__logging import console
+
+_log = console('bindable')
 
 class Converter():
     """Преобразование значений прямое и обратное. Property использует для преобразования из iec и обратно
@@ -122,7 +125,10 @@ class Property():
 
     def iec(self)->Any:
         if self.filter:
-            return self.filter.eu2raw(self.read( ),what=self)
+            try:
+                return self.filter.eu2raw(self.read( ),what=self)
+            except Exception as e:
+                return self.read( )
         
         return self._value
     
@@ -139,7 +145,11 @@ class Property():
             self._iec = iec_val
         #теперь необходимо преобразовать iec в value
         if self.filter: 
-            self.write( self.filter.raw2eu(self._iec,what=self),remote=True)
+            try:
+                self.write( self.filter.raw2eu(self._iec,what=self),remote=True)
+            except Exception as e:
+                _log.warning( f'проблема в raw2eu {self.name}: {e}' )
+                self.write( self._iec ,remote=True)
         else:
             self.write( self._iec,remote = True )
                 
