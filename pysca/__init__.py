@@ -8,6 +8,7 @@ from typing import Any
 from __version__ import version_short as version
 from .bindable import Expressions,Property
 from .utils import LinearScale
+from .device import PYPLC
 
 #работа с базой конфигурации проекта
 from sqlalchemy import String,Boolean,BLOB,create_engine,select,or_,exc
@@ -340,7 +341,7 @@ class _pysca():
             log.error('error while initializing animations/signals: %s' % (e._message()))        
         
     
-pysca = _pysca( )
+app = _pysca( )
 
 try:
     os.chdir(args.workdir)
@@ -349,8 +350,8 @@ except FileNotFoundError as e:
     log.warning('cannot set workdir - not found') 
 
 try:
-    pysca.config( args.conf )
+    app.config( args.conf )
 except exc.SQLAlchemyError as e:
     log.error(f'failed to open configuration')
 
-__all__=['pysca']
+__all__=['app','PYPLC']
