@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 version_file = "src/pysca/_version.py"
-version_scheme = "only-version"
+#version_scheme = "only-version"
 local_scheme = "no-local-version"
 
 [tool.setuptools.packages.find]
@@ -29,7 +29,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = ['AnyQt', 'sqlalchemy']
+dependencies = ['AnyQt', 'sqlalchemy','pyplc']
 
 [project.urls]
 "Homepage" = "https://github.com/vlinnik/pysca"

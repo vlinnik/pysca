@@ -9,3 +9,9 @@ Extensions.ui
 examples
 .pybuild
 .debhelper
+debian/python3-pysca
+debian/python-pysca-doc.substvars
+debian/python3-pysca.postinst.debhelper
+debian/python3-pysca.prerm.debhelper
+debian/python3-pysca.substvars
+debian/debhelper-build-stamp

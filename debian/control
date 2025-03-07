@@ -1,5 +1,5 @@
 Source: pysca
-Section: unknown
+Section: devel
 Priority: optional
 Maintainer: vlinnik <vlinnik@mail.ru>
 Rules-Requires-Root: no
@@ -8,11 +8,8 @@ Build-Depends:
  dh-sequence-python3,
  python3-setuptools,
  python3-all,
-#Testsuite: autopkgtest-pkg-python
 Standards-Version: 4.6.2
-Homepage: <insert the upstream URL, if relevant>
-#Vcs-Browser: https://salsa.debian.org/debian/pysca
-#Vcs-Git: https://salsa.debian.org/debian/pysca.git
+Homepage: https://github.com/vlinnik/pysca.git
 
 Package: python3-pysca
 Architecture: all
@@ -20,21 +17,11 @@ Multi-Arch: foreign
 Depends:
  ${python3:Depends},
  ${misc:Depends},
+ python3-pyqt5,
+ python3-sqlalchemy
 Suggests:
- python-pysca-doc,
-Description: <insert up to 60 chars description> (Python 3)
- <Insert long description, indented with spaces.>
- .
- This package installs the library for Python 3.
-
-Package: python-pysca-doc
-Section: doc
-Architecture: all
-Multi-Arch: foreign
-Depends:
- ${sphinxdoc:Depends},
- ${misc:Depends},
-Description: <insert up to 60 chars description> (common documentation)
- <Insert long description, indented with spaces.>
- .
- This is the common documentation package.
+Description: PYSCA - a library for developing operator interfaces (HMI, SCADA) based on PyQt5.
+ PYSCA is a library for Python3 designed for creating operator interfaces (HMI) 
+ and supervisory control and data acquisition (SCADA) systems based on PyQt5. 
+ The library supports integration with KRAX PLC-932, and PYSCA allows easy 
+ development of visualization for control logic.
