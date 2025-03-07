@@ -1,0 +1,2 @@
+AnyQt
+sqlalchemy

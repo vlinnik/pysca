@@ -1,6 +1,6 @@
 
-if __name__=='__main__': 
-    from . import pysca
+def main():
+    from . import app
     from AnyQt.QtCore import QResource
     import argparse
     parser = argparse.ArgumentParser(
@@ -24,7 +24,7 @@ if __name__=='__main__':
     _g = globals()
     startup = None
     for file in args.forms:
-        w = pysca.window(file)
+        w = app.window(file)
         if w:
             _g[w.objectName()] = w
             if startup is None:startup = w
@@ -37,4 +37,7 @@ if __name__=='__main__':
             
     if startup: 
         startup.show( )        
-        pysca.start( ctx = globals() )
+        app.start( ctx = globals() )
+
+if __name__=='__main__': 
+    main()

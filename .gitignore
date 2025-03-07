@@ -6,4 +6,6 @@ build
 dist
 pysca.egg-info
 Extensions.ui
-test.py
+examples
+.pybuild
+.debhelper

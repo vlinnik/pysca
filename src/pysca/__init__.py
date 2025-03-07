@@ -5,10 +5,10 @@ import logging
 import argparse
 import json
 from typing import Any
-from __version__ import version_short as version
 from .bindable import Expressions,Property
 from .utils import LinearScale
 from .device import PYPLC
+from ._version import __version__
 
 #работа с базой конфигурации проекта
 from sqlalchemy import String,Boolean,BLOB,create_engine,select,or_,exc
@@ -90,7 +90,7 @@ class _Signals(_Base):
     data: Mapped[str] = mapped_column(String(128))
 
 log = console('pysca')
-log.info(f'initializing pysca {version}')
+log.info(f'initializing pysca {__version__}')
 if not QApplication.instance():
     qApp = QApplication(sys.argv)
 else:
