@@ -11,8 +11,9 @@ use_git_versioner="short,desc,snapshot"
 [tool.setuptools]
 include-package-data = true
 
-[tool.setuptools.packages.find]
-where = ["."]
+#[tool.setuptools.packages.find]
+#where = ["pysca"]
+#ignore = ["build"]
 
 [tool.setuptools.package-data]
 pysca = ["**/*.scada", "**/*.yaml", "**/*.ui", "**/LICENCE","**/README.md", "**/*.toml"]
