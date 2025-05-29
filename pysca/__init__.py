@@ -309,7 +309,7 @@ class _pysca():
                 log.error('ошибка при настройке события: объект(%s), событие(%s), выражение(%s): %s' % (signal.objectID,signal.signal,signal.data,e) )
                 # log.error('error in signal initialization %s(%s)' % (objectID,e) )
                 
-    def window(self,t:type | str,objectID:str = None,ctx: dict = None, **kwargs)->'QWidget':
+    def window(self,t:type | str,objectID:str = None,ctx: dict = None, baseinstance: Any | None=None, **kwargs)->'QWidget':
         try:
             from AnyQt import uic
             if isinstance(t,type):
@@ -319,7 +319,7 @@ class _pysca():
                     w = t( )
             else:
                 log.debug('loading form from UI-file (%s)' % (t))
-                w = uic.loadUi( t )
+                w = uic.loadUi( t ,baseinstance=baseinstance)
                 if w is None:
                     log.error('failed to load UI-file') 
                     return     

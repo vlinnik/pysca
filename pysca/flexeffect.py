@@ -116,6 +116,8 @@ class FlexEffect(QObject):
     
     def set_duration(self,x:int):
         self._animation.setDuration(x)
+        if x<=0: self._animated = False
+        else: self._animated = True
             
     def get_active(self)->bool:
         return self._active
@@ -155,6 +157,8 @@ class FlexEffect(QObject):
             return
         if effect==EffectType.Nothing:
             self.target.setGraphicsEffect(None)
+        elif effect==EffectType.Opacity:
+            self.target.setGraphicsEffect(QGraphicsOpacityEffect(self))
         elif effect==EffectType.Blur:
             self.target.setGraphicsEffect(QGraphicsBlurEffect(self))
         elif effect==EffectType.Colorize:
@@ -202,7 +206,7 @@ class FlexEffect(QObject):
             blur.setBlurRadius(strength)
         if self._effect==EffectType.Opacity:
             opacity:QGraphicsOpacityEffect = geffect
-            opacity.setOpacity( self._power )
+            opacity.setOpacity( 1.0 - self._power )
         if self._effect==EffectType.Colorize:
             colorize:QGraphicsColorizeEffect = geffect
             p:QPalette = self.target.palette()
@@ -250,7 +254,8 @@ if __name__=='__main__':
     win = QWidget( )
     target = QCheckBox('activate',parent=win)
     flex = FlexEffect( target )
-    flex.set_effect(EffectType.MirrorX)
+    flex.set_duration(0)
+    flex.set_effect(EffectType.Opacity)
     flex.set_strength(1)
     target.setChecked(flex.get_active( ))
     target.toggled.connect(flex.set_active)
