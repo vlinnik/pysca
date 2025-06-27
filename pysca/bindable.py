@@ -112,7 +112,7 @@ class Property():
                 try:
                     b(self._value)
                 except Exception as e:
-                    _log.warning(f'проблема в bind {self.name}: {e}')
+                    if self._value is not None: _log.warning(f'проблема при изменении значения {self.name}: {e}')
                 
         if self._iec_write and not remote:
             self._iec_write(self.raw)

@@ -1,6 +1,8 @@
 from typing import Callable
+from AnyQt.QtWidgets import QWidget
+from AnyQt.QtCore import QObject
 
-def custom_widget( ui_file: str ): 
+def custom_widget( ui_file: str, base: type = QWidget ): 
     """Использование на окне пользовательских виджетов, получаемых из ui-файлов. Применяется в связке с custom_widget_plugin
     
     Пример: на форме есть однотипные элементы состоящие из кнопки on & off. Можно создать ON_OFF.ui.
@@ -13,20 +15,32 @@ def custom_widget( ui_file: str ):
     
     ON_OFF = custom_widget('ON_OFF.ui') #имя переменной должно совпадать с параметром name
     
-
+    Если необходимо добавить свойства, обработчики событий то наследуем класс
+    class ON_OFF(custom_widget('ON_OFF.ui')):
+        ...
+    и потом 
+    ON_OFF_PLUGIN = custom_widget_plugin(ON_OFF,include='widgets',name='ON_OFF')
+    
     Args:
         ui_file (str): ui-файл, из которого создается пользовательский виджет
+        base (type QWidget-derived): от чего наследуется создаваемый класс, default QWidget
     """
     from AnyQt import uic
-    from AnyQt.QtWidgets import QWidget
+    
+    class __CustomWidget(base):
+        def __init__(self,parent: QWidget = None,*args,**kwargs):
+            from pysca import app
+            super().__init__(parent,*args,**kwargs)
+            uic.loadUi(ui_file,self)
+            self.setParent(parent)
+            app.window(self,self.objectName(),self._ctx(),later=True)        
+        def _ctx(self):
+            for key in self.dynamicPropertyNames():
+                yield bytearray(key).decode(),self.property(key)
 
-    def constructor(parent,*args,**kwargs)->QWidget:
-        w = uic.loadUi(ui_file)
-        w.setParent(parent)
-        return w
-    return constructor
+    return __CustomWidget
 
-def custom_widget_plugin(ui: str, name:str,is_container:bool = False, group: str='PYSCA', include: str='widgetsplugin', whatsThis:str='', toolTip: str=''):
+def custom_widget_plugin(widget: str | type, name:str,is_container:bool = False, group: str='PYSCA', include: str='widgetsplugin', whatsThis:str='', toolTip: str=''):
     """Создать класс, который позволяет использовать пользовательский виджет в QtDesigner + PyQt5. 
     
     Последовательность действий для использования пользовательских виджетов в QtDesigner + PyQt5
@@ -35,7 +49,7 @@ def custom_widget_plugin(ui: str, name:str,is_container:bool = False, group: str
     - запускаем QtDesigner: PYQTDESIGNERPATH=<где лежит созданный widgetsplugin.py> qtdesigner
 
     Args:
-        ui (str): ui-файл, описывает пользовательский виджет
+        widget (str|type): ui-файл, описывает пользовательский виджет или класс, который создается
         name (str): имя пользовательского виджета
         is_container (bool, optional): пользовательский виджет контейнер.
         group (str, optional): группа, в которой будет отображен пользовательский виджет в интерфейсе QtDesigner. Defaults to 'PYSCA'.
@@ -55,6 +69,10 @@ def custom_widget_plugin(ui: str, name:str,is_container:bool = False, group: str
         def __init__(self, parent = None):
             super().__init__(parent)
             self.initialized = False
+            if isinstance(widget,str):
+                self.widget = type(name,(custom_widget(widget),),{})
+            else:
+                self.widget = type(name,(widget,),{})
 
         def initialize(self, core):
             if self.initialized:
@@ -66,15 +84,7 @@ def custom_widget_plugin(ui: str, name:str,is_container:bool = False, group: str
             return self.initialized
 
         def createWidget(self, parent:QWidget = None):
-            try:
-                _ui_class,_base_class = uic.loadUiType(ui)
-                _widget_class = type(name,(_base_class,),{} )
-                _widget = _widget_class( parent = parent )
-                _ui = _ui_class( )
-                _ui.setupUi(_widget)
-                return _widget
-            except Exception as e:
-                pass
+            return self.widget(parent)
 
         def name(self):
             return name
@@ -97,4 +107,4 @@ def custom_widget_plugin(ui: str, name:str,is_container:bool = False, group: str
         def isContainer(self):
             return is_container
     
-    return __CUSTOM_WIDGET_PLUGIN,custom_widget(ui_file=ui)
+    return __CUSTOM_WIDGET_PLUGIN

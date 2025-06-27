@@ -1,6 +1,8 @@
-from AnyQt.QtWidgets import QApplication
-from AnyQt.QtCore import QObject,QResource,QVariant
-import sys,os,glob,re
+from AnyQt.QtWidgets import QApplication,QWidget
+from AnyQt.QtCore import QObject,QResource,QVariant,QTimer
+from datetime import datetime
+import time
+import sys,os,glob,re,types
 import logging
 import argparse
 import json
@@ -110,17 +112,24 @@ class _pysca():
     def __init__(self):
         self.animations = []
         self.slots = []
-        self.devices = { }
-        self.ctx = Expressions( )
-        self.session = None
+        self.devices = { }          #устройства IO
+        self.ctx = Expressions( )   #выражения и переменные
+        self.session = None         #работа с базой 
         self._ = { }
+        self.queued = []            #запланировано к анимированию. tuples параметров animate + objectID
+        now = datetime.now()
+        self.SECOND = self.var(int(now.second),'SECOND')
+        self.MINUTE = self.var(int(now.minute),'MINUTE')
+        self.HOUR = self.var(int(now.hour),'HOUR')
+        self.MSEC = self.var(int(now.microsecond/1_000),'MSEC')
+        self.NOW = self.var(time.time(),'NOW')
     
     def __findChild(self,o: QObject, path: list[str] ):
         if o is None:
             return None
         
-        if o.objectName()!=path[0]:
-            return None
+        # if o.objectName()!=path[0]:
+        #     return None
         
         if len(path)>1:
             child = o.findChild(QObject, path[1] )
@@ -157,6 +166,13 @@ class _pysca():
         
     def context(self)->dict:
         return self._
+    
+    def tick(self):
+        now = datetime.now( )
+        self.NOW(time.time())
+        self.SECOND(now.second)
+        self.MINUTE(now.minute)
+        self.HOUR(now.hour)
 
     def start(self,ctx: dict ):
         self._ = ctx
@@ -166,8 +182,12 @@ class _pysca():
             for p in self.ctx.values():
                 if p.source == name:
                     dev.subscribe(p)
-                    
+        
+        clock = QTimer()
+        clock.timeout.connect( self.tick )
+        clock.start(100)
         qApp.exec( )
+        clock.stop( )
         
     def config(self,db:str): 
         if not os.path.isabs(db):
@@ -216,21 +236,78 @@ class _pysca():
         log.debug(f'searching resource files in {rcc_dir}')
         rcc_files = glob.glob('*.rcc',root_dir=rcc_dir)
         for rcc in rcc_files:
-            log.debug(f'loading resources file {rcc_dir}/{rcc}')
+            mod_name = os.path.splitext(rcc)[0]+'_rc'
+            log.debug(f'loading resources file {rcc_dir}/{rcc}/{mod_name}')
+            sys.modules[mod_name] = types.ModuleType(mod_name)
             QResource.registerResource(f'{rcc_dir}/{rcc}')
-        
-    def animate(self,obj, ctx: dict = None,objectID:str = None ):
+    
+    def bindings( self, target: QObject,ctx: dict = None, **kwargs):
         from .qtac import QObjectPropertyBinding,QObjectDynamicPropertyHelper
         from .flexeffect import FlexEffect
+        
+        helper = None
 
+        for prop in kwargs:
+            if target.isWidgetType() and not target.property(b'_effect'):
+                target.setProperty(b'_effect',QVariant(FlexEffect(target)))
+                            
+            code = kwargs[prop]
+            
+            rd_only = False
+            wr_only = False
+            expression = None
+            if isinstance(code,Property):
+                expression = code
+            elif isinstance(code,str):
+                expression = self.ctx.create(code,locals=ctx)
+            elif callable(code):
+                try:
+                    init_val = code( )
+                except TypeError as e:
+                    init_val = None
+                    wr_only = True
+                expression = Property(init_val, read=None if wr_only else code, write=code if not rd_only else None)
+            else:
+                log.warning('неизвестный тип анимации %s для свойства %s' % (type(code),prop))
+                continue
+                
+            if rd_only:
+                if not prop.startswith('__effect_'):
+                    ani = QObjectPropertyBinding.create( target, prop, expression ,readOnly=True)
+                else:
+                    effect = target.property(b'_effect')
+                    ani = QObjectPropertyBinding.create( effect, str(prop)[9:], expression ,readOnly=True)
+                    
+                self.animations.append( ani )
+                ani.update(expression.value)
+            else:
+                ani = QObjectPropertyBinding.create( target, prop, expression )
+                self.animations.append(ani)
+                if ani.dynamic:
+                    if not helper:
+                        helper = QObjectDynamicPropertyHelper(target)   #TODO: надо где-то сохранить созданный объект
+                    helper.mapping( prop, code )
+            
+    def animate(self,obj, ctx: dict = None,objectID:str = None):
+        """Настроить анимации свойств из базы
+
+        Args:
+            obj (QObject): что анимировать
+            ctx (dict, optional): дополнительные переменные. Defaults to None.
+            objectID (str, optional): с чего начинаются записи в базе. Defaults to None.
+            later (bool, optional): для отложенной анимации (запланировать, анимирование произойдет при следующем вызове с later=False). Defaults to None.
+        """
+        from .qtac import QObjectPropertyBinding,QObjectDynamicPropertyHelper
+        from .flexeffect import FlexEffect
+        
         if not self.session:
             return
-        
-        if not objectID:
-            objectID = obj.objectName() 
-            
+                    
         if not ctx:
             ctx = { }
+
+        if not objectID:
+            objectID = obj.objectName() 
         
         if objectID not in ctx:
             ctx[objectID] = obj
@@ -248,6 +325,11 @@ class _pysca():
                 target.setProperty(b'_effect',QVariant(FlexEffect(target)))
                             
             code = animation.data
+            try:
+                resolved = eval(f'f\'{code}\'',None,ctx)
+                code = resolved
+            except Exception as e:
+                pass
             try:
                 rd_only = False
                 wr_only = False
@@ -280,7 +362,7 @@ class _pysca():
             except Exception as e:
                 log.error('ошибка при настройки анимации: объект(%s), свойство(%s), выражение(%s): %s' % (animation.objectID,animation.prop,animation.data,e) )
             
-    def signals(self, obj, objectID: str = None):
+    def signals(self, obj, objectID: str = None,ctx:dict = None):
         from .qtac import QObjectSignalHandler
 
         if not obj:
@@ -291,13 +373,21 @@ class _pysca():
         
         if not objectID:
             objectID = obj.objectName() 
-            
+        
+        if ctx is None:
+            ctx = { }
+                    
         signals = select(_Signals).where( or_(_Signals.objectID.startswith(objectID+"."),_Signals.objectID==(objectID)) )
         for signal in self.session.scalars(signals):
             try:
                 target = self.__findChild( obj,signal.objectID.split('.') )
                 if target:
                     code = signal.data
+                    try:
+                        resolved = eval(f'f\'{code}\'',None,ctx)
+                        code = resolved
+                    except Exception as e:
+                        pass                    
                     if re.match("@(\\w+(\\.\\w+)*)",code):
                         code = re.sub("@(\\w+(\\.\\w+)*)","\\1.value",code)
                     self.slots.append(QObjectSignalHandler(target,signal.signal,code,self.context,self.ctx))
@@ -309,7 +399,7 @@ class _pysca():
                 log.error('ошибка при настройке события: объект(%s), событие(%s), выражение(%s): %s' % (signal.objectID,signal.signal,signal.data,e) )
                 # log.error('error in signal initialization %s(%s)' % (objectID,e) )
                 
-    def window(self,t:type | str,objectID:str = None,ctx: dict = None, baseinstance: Any | None=None, **kwargs)->'QWidget':
+    def window(self,t:type | str | QWidget,objectID:str = None,ctx: dict = None, baseinstance: Any | None=None, later:bool=False, **kwargs)->'QWidget':
         try:
             from AnyQt import uic
             if isinstance(t,type):
@@ -317,15 +407,28 @@ class _pysca():
                     w = t( **kwargs )
                 else:
                     w = t( )
-            else:
+            elif isinstance(t,str):
                 log.debug('loading form from UI-file (%s)' % (t))
                 w = uic.loadUi( t ,baseinstance=baseinstance)
                 if w is None:
                     log.error('failed to load UI-file') 
-                    return     
+                    return 
+            elif isinstance(t,QWidget):
+                w = t    
             try:
-                self.animate(w,objectID=objectID,ctx=ctx)
-                self.signals(w,objectID=objectID)
+                if not later:
+                    self.animate(w,objectID=objectID,ctx=ctx)
+                    self.signals(w,objectID=objectID)
+                    for q,objectID,ctx in self.queued:
+                        try:
+                            ctx = dict(ctx)
+                            self.animate(q,objectID=objectID,ctx=ctx)
+                            self.signals(q,objectID=objectID,ctx=ctx)
+                        except Exception as e:
+                            log.warning(f'внимание: проблема в отложенном анимировании объекта object({objectID})')
+                    self.queued.clear()                        
+                else:
+                    self.queued.append( (w,objectID,ctx) )
             except exc.SQLAlchemyError as e:
                 log.error('error while initializing animations/signals: %s' % (e._message()))
             
@@ -333,10 +436,13 @@ class _pysca():
         except Exception as e:
             log.error('error creating window: %s (%s)',t,e)
             
-    def object(self,obj:'QObject',objectID:str = None):
+    def object(self,obj:'QObject',objectID:str = None,ctx:dict = None):
+        if ctx is None:
+            ctx = { }
         try:
-            self.animate(obj,objectID=objectID)
-            self.signals(obj,objectID=objectID)
+            ctx=dict(ctx)
+            self.animate(obj,objectID=objectID,ctx=ctx)
+            self.signals(obj,objectID=objectID,ctx=ctx)
         except exc.SQLAlchemyError as e:
             log.error('error while initializing animations/signals: %s' % (e._message()))        
         
