@@ -240,7 +240,14 @@ class _pysca():
             log.debug(f'loading resources file {rcc_dir}/{rcc}/{mod_name}')
             sys.modules[mod_name] = types.ModuleType(mod_name)
             QResource.registerResource(f'{rcc_dir}/{rcc}')
-    
+
+    def ctxOf(self,target, ctx: dict =None):
+        for key in target.dynamicPropertyNames():
+            yield bytearray(key).decode(),target.property(key)
+        if ctx is not None:
+            for key in ctx:
+                yield key,ctx[key]
+        
     def bindings( self, target: QObject,ctx: dict = None, **kwargs):
         from .qtac import QObjectPropertyBinding,QObjectDynamicPropertyHelper
         from .flexeffect import FlexEffect
@@ -326,7 +333,7 @@ class _pysca():
                             
             code = animation.data
             try:
-                resolved = eval(f'f\'{code}\'',None,ctx)
+                resolved = eval(f'f\'{code}\'',None,dict(self.ctxOf(target,ctx)))
                 code = resolved
             except Exception as e:
                 pass
