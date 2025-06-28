@@ -5,8 +5,8 @@ from .bindable import Property
 from time import time
 
 class PYPLC(Subscriber):
-    def __init__(self, host, port=9004,timeout=5):
-        super().__init__(host, port)
+    def __init__(self, host, port=9004,timeout=10):
+        super().__init__(host, port,i_size=4096,o_size=512)
         self._timer = QTimer()
         self._timer.timeout.connect(self)
         self._timestamp = time()
@@ -37,4 +37,5 @@ class PYPLC(Subscriber):
     def routine(self):
         if self._timestamp+self._timeout<time():
             self.close( )
-        return super().routine()
+        else:
+            super().routine()
