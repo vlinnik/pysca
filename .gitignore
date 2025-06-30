@@ -15,3 +15,4 @@ debian/python3-pysca.postinst.debhelper
 debian/python3-pysca.prerm.debhelper
 debian/python3-pysca.substvars
 debian/debhelper-build-stamp
+_version.py

@@ -109,7 +109,10 @@ class Property():
             if self._write:
                 self._write(self._value)
             for b in self.__binds:
-                b(self._value)
+                try:
+                    b(self._value)
+                except Exception as e: 
+                    pass
                 
         if self._iec_write and not remote:
             self._iec_write(self.raw)
