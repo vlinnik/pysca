@@ -14,7 +14,6 @@ except ImportError:
 from .bindable import Expressions,Property
 from .utils import LinearScale
 from .device import PYPLC
-from ._version import __version__
 
 #работа с базой конфигурации проекта
 from sqlalchemy import String,Boolean,BLOB,Integer,create_engine,select,or_,exc,__version__ as sqlalchemy_version
@@ -101,7 +100,7 @@ class _Signals(_Base):
     data: Mapped[str] = mapped_column(String(128))
 
 log = console('pysca')
-log.info(f'initializing pysca {__version__}, sqlalchemy {sqlalchemy_version}')
+log.info(f'initializing pysca {version}, sqlalchemy {sqlalchemy_version}')
 if not QApplication.instance():
     qApp = QApplication(sys.argv)
 else:
