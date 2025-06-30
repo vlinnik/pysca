@@ -1,12 +1,16 @@
 [build-system]
-requires = ["setuptools>=61.0","git-versioner>=6.0"]
+requires = ["setuptools>=61.0","setuptools_scm"]
 build-backend = "setuptools.build_meta"
 
-[tool.git-versioner]
-snapshot = true
-short = true
-desc = true
-use_git_versioner="short,desc,snapshot"
+[tool.setuptools_scm]
+version_scheme = "post-release"
+#write_to = "pysca/__version__.py"
+
+#[tool.git-versioner]
+#snapshot = true
+#short = true
+#desc = true
+#use_git_versioner="short,desc,snapshot"
 
 [tool.setuptools]
 include-package-data = true
