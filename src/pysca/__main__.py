@@ -1,5 +1,5 @@
 
-if __name__=='__main__': 
+def main():
     from . import app
     from AnyQt.QtCore import QResource
     import argparse
@@ -38,3 +38,6 @@ if __name__=='__main__':
     if startup: 
         startup.show( )        
         app.start( ctx = globals() )
+
+if __name__=='__main__': 
+    main()

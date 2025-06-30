@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0","setuptools_scm"]
+requires = ["setuptools>=61.0","wheel","setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
@@ -16,9 +16,9 @@ write_to = "pysca/__version__.py"
 [tool.setuptools]
 include-package-data = true
 
-#[tool.setuptools.packages.find]
-#where = ["pysca"]
-#ignore = ["build"]
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = []
 
 [tool.setuptools.package-data]
 pysca = ["**/*.scada", "**/*.yaml", "**/*.ui", "**/LICENCE","**/README.md", "**/*.toml"]
@@ -38,7 +38,11 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+dependencies = ['AnyQt', 'sqlalchemy','pyplc']
 
 [project.urls]
 "Homepage" = "https://github.com/vlinnik/pysca"
 "Bug Tracker" = "https://github.com/vlinnik/pysca/issues"
+
+[project.scripts]
+pysca = "pysca.__main__:main"
