@@ -7,3 +7,4 @@ dist
 pysca.egg-info
 Extensions.ui
 test.py
+__version__.py

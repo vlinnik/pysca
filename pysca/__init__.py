@@ -7,7 +7,10 @@ import logging
 import argparse
 import json
 from typing import Any
-from __version__ import version_short as version
+try:
+    from .__version__ import version
+except ImportError:
+    version = 'v0.0.0+unknown'
 from .bindable import Expressions,Property
 from .utils import LinearScale
 from .device import PYPLC
