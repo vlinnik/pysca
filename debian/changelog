@@ -1,8 +1,9 @@
-pysca (0.2) UNRELEASED; urgency=medium
+pysca (0.3) UNRELEASED; urgency=medium
 
   * Сборка на базе репозитория v0.2-g28914f9-dirty
+  * Автоматическая генерация версии
 
- -- vlinnik <vlinnik@mail.ru> 30.06.2025 14:35
+ -- vlinnik <vlinnik@mail.ru>  Mon, 30 Jun 2025 22:31:26 +0300
 
 pysca (0.1) UNRELEASED; urgency=medium
 
