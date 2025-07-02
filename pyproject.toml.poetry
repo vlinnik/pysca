@@ -1,0 +1,24 @@
+[project]
+dynamic = ["version"]
+
+[tool.poetry]
+name = "pysca"
+version = "0.0.0"
+description = "Framework for developing Python+Qt GUI"
+authors = ["Linnik V.V <vlinnik@mail.ru>"]
+license = "file=\"LICENSE\""
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+anyqt = "^0.2.0"
+sqlalchemy = "^2.0.38"
+pyplc = {path = "../pyplc/dist/pyplc-0.3.0-py3-none-any.whl"}
+
+[tool.poetry-dynamic-versioning]
+enable = true
+
+[build-system]
+requires = ["poetry-core", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
+#build-backend = "poetry.core.masonry.api"
+build-backend = "poetry_dynamic_versioning.backend"

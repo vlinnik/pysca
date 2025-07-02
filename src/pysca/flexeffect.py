@@ -194,6 +194,7 @@ class FlexEffect(QObject):
         if x==0 and self._deactivating:
             self._deactivating = False
         self._apply( )
+        print(f'{x}')
         
     def _apply(self):
         strength = (self._strength - self._strength_)*self._power + self._strength_

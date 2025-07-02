@@ -6,4 +6,14 @@ build
 dist
 pysca.egg-info
 Extensions.ui
-test.py
+examples
+.pybuild
+.debhelper
+debian/python3-pysca
+debian/python-pysca-doc.substvars
+debian/python3-pysca.postinst.debhelper
+debian/python3-pysca.prerm.debhelper
+debian/python3-pysca.substvars
+debian/debhelper-build-stamp
+_version.py
+__version__.py

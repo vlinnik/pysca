@@ -7,14 +7,25 @@ import logging
 import argparse
 import json
 from typing import Any
-from __version__ import version_short as version
+try:
+    from .__version__ import version
+except ImportError:
+    version = 'v0.0.0+unknown'
 from .bindable import Expressions,Property
 from .utils import LinearScale
 from .device import PYPLC
 
 #работа с базой конфигурации проекта
-from sqlalchemy import String,Boolean,BLOB,create_engine,select,or_,exc
-from sqlalchemy.orm import Session,DeclarativeBase,Mapped,mapped_column
+from sqlalchemy import String,Boolean,BLOB,Integer,create_engine,select,or_,exc,__version__ as sqlalchemy_version
+from sqlalchemy.orm import Session,Mapped
+if sqlalchemy_version<'2':
+    from sqlalchemy import Column as mapped_column
+    from sqlalchemy.orm import declarative_base
+    _Base = declarative_base()
+else:
+    from sqlalchemy.orm import mapped_column,DeclarativeBase
+    class _Base(DeclarativeBase):
+        pass
 
 def console(name: str,level = logging.DEBUG)->logging.Logger:
     """создать логгер на консоль с цветовым выделением
@@ -61,14 +72,11 @@ def console(name: str,level = logging.DEBUG)->logging.Logger:
     ret.addHandler(stream)
     return ret
 
-class _Base(DeclarativeBase):
-    pass
-
 class _Variables(_Base):
     __tablename__ = "Variables"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(45))
-    type: Mapped[int]
+    type: Mapped[int] = mapped_column(Integer)
     source: Mapped[str] = mapped_column(String(45))
     address: Mapped[str] = mapped_column(String(128))
     logging: Mapped[bool] = mapped_column(Boolean)
@@ -92,7 +100,7 @@ class _Signals(_Base):
     data: Mapped[str] = mapped_column(String(128))
 
 log = console('pysca')
-log.info(f'initializing pysca {version}')
+log.info(f'initializing pysca {version}, sqlalchemy {sqlalchemy_version}')
 if not QApplication.instance():
     qApp = QApplication(sys.argv)
 else:
