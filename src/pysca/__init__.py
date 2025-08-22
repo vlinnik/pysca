@@ -1,5 +1,5 @@
 from AnyQt.QtWidgets import QApplication,QWidget
-from AnyQt.QtCore import QObject,QResource,QVariant,QTimer
+from AnyQt.QtCore import QObject,QResource,QVariant,QTimer,Qt,QThread
 from datetime import datetime
 import time
 import sys,os,glob,re,types
@@ -14,6 +14,8 @@ except ImportError:
 from .bindable import Expressions,Property
 from .utils import LinearScale
 from .device import PYPLC
+from .journal import MetricJournal
+from .events import MetricDairy
 
 #работа с базой конфигурации проекта
 from sqlalchemy import String,Boolean,BLOB,Integer,create_engine,select,or_,exc,__version__ as sqlalchemy_version
@@ -78,6 +80,7 @@ class _Variables(_Base):
     name: Mapped[str] = mapped_column(String(45))
     type: Mapped[int] = mapped_column(Integer)
     source: Mapped[str] = mapped_column(String(45))
+    comment: Mapped[str] = mapped_column(String(45))
     address: Mapped[str] = mapped_column(String(128))
     logging: Mapped[bool] = mapped_column(Boolean)
     events: Mapped[bool] = mapped_column(Boolean)
@@ -102,6 +105,7 @@ class _Signals(_Base):
 log = console('pysca')
 log.info(f'initializing pysca {version}, sqlalchemy {sqlalchemy_version}')
 if not QApplication.instance():
+    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
     qApp = QApplication(sys.argv)
 else:
     qApp = QApplication.instance()
@@ -113,6 +117,11 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('--conf',action='store',default='default.scada',help='Конфигурационная база проекта (переменные, анимации, короткие события)')
 parser.add_argument('-w','--workdir',action='store',default='./',help='Рабочий каталог проекта')
+parser.add_argument('--opentsdb',action='store',default='none',help='Использовать OpenTSDB для хранения журнала, адрес сервера')
+parser.add_argument('--otsdb_port',action='store',default=4242,help='OpenTSDB port, по умолчанию 4242')
+parser.add_argument('--grafana',action='store',default='none',help='Использовать Grafana для хранения событий, адрес сервера')
+parser.add_argument('--grafana_port',action='store',default=3000,help='Grafana port, по умолчанию 3000')
+parser.add_argument('--grafana_key',action='store',default='',help='Grafana API-KEY, получить в Administrations->Service Accounts')
 
 args,ignored = parser.parse_known_args()
     
@@ -131,6 +140,8 @@ class _pysca():
         self.HOUR = self.var(int(now.hour),'HOUR')
         self.MSEC = self.var(int(now.microsecond/1_000),'MSEC')
         self.NOW = self.var(time.time(),'NOW')
+        self.journal:MetricJournal | None = None
+        self.events:MetricDairy | None = None
     
     def __findChild(self,o: QObject, path: list[str] ):
         if o is None:
@@ -218,7 +229,6 @@ class _pysca():
             
             if var.type==Property.TYPE_FLOAT:
                 p = self.var(float,var.name)
-                p.filter = LinearScale()
             elif var.type==Property.TYPE_BOOL:
                 p = self.var(bool,var.name)
             elif var.type==Property.TYPE_STR:
@@ -234,10 +244,21 @@ class _pysca():
             p.source = var.source
             p.address = var.address
             p.type = var.type
+            p.comment = var.comment
             try:
                 p.properties = json.loads( var.properties )
             except:
                 p.properties = { }
+
+            if var.type==Property.TYPE_FLOAT:
+                p.filter = LinearScale
+                
+            if var.logging==True and self.journal:
+                p.filter = self.journal.factory()
+                
+            if var.events==True and self.events:
+                p.filter = self.events.factory()
+
             p.config(p.properties)
         
         rcc_dir = os.path.dirname(os.path.abspath(db))
@@ -469,6 +490,16 @@ try:
     log.debug(f'working dir is {args.workdir}')
 except FileNotFoundError as e:
     log.warning('cannot set workdir - not found') 
+
+if args.opentsdb!='none':
+    from .opentsdb import OpenTSDBJournal
+    app.journal = OpenTSDBJournal( args.opentsdb, args.otsdb_port )
+    app.journal.spawn(  )
+
+if args.grafana!='none':
+    from .grafanaevents import GrafanaAnnotations
+    app.events = GrafanaAnnotations(args.grafana_key,args.grafana,args.grafana_port)
+    app.events.spawn( )
 
 try:
     app.config( args.conf )

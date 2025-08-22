@@ -1,19 +1,47 @@
-from typing import Any
+from typing import Any,Type
 from .__logging import console
 
 _log = console('bindable')
 
-class Converter():
-    """Преобразование значений прямое и обратное. Property использует для преобразования из iec и обратно
+class Filter():
+    """Преобразование значений прямое и обратное. 
+    Property использует для преобразования из iec(получено новое значение) и обратно (надо отправить новое значение)
     """
-    def __init__(self):
-        pass
-    def raw2eu(self,raw: Any, property:'Property'=None):
+    def __init__(self,*,what: 'Property|None' = None, next: 'Filter|None' = None):
+        super().__init__( )
+        self._next: 'Filter|None' = next
+        self._prop: 'Property|None' = what
+        
+    def raw2eu(self,raw: Any):
+        if self._next is not None:
+            return self._next.raw2eu(raw)
         return raw
-    def eu2raw(self,eu: Any, property: 'Property'=None):
+    def eu2raw(self,eu: Any):
+        if self._next is not None:
+            return self._next.eu2raw(eu)
         return eu
+    def __setattr__(self, name: str, value: Any) -> None:
+        try:
+            super().__setattr__(name,value)
+        except AttributeError:
+            if self._next is not None: 
+                setattr(self._next,name,value)
+            else:
+                pass
+    def config(self, attr: str, value: Any):
+        if hasattr(self,attr):
+            setattr(self, attr, value)
+        elif self._next:
+            self._next.config(attr,value)
 
 class Property():
+    """ Переменная I/O или обычная. Хранит 2 значения: физическое (iec) и логическое (value).
+    
+    changed - настроить callback, для записи в контроллер (iec значение). Для драйверов
+    write - изменить переменную. если remote != True, то вызовет changed (передать в драйвер)
+    read - прочитать логическое значение.
+    bind - установить callback, который будет вызван при изменении значения.(логического)
+    """
     TYPE_ANY = 0
     TYPE_BOOL = 1
     TYPE_FLOAT = 2
@@ -33,7 +61,7 @@ class Property():
             write (callable, optional): Для изменения свойства используется функция write(<новое значение>). Defaults to None.
             iec_val (type|Any,optional): Тип переменной в физическом представлении. Например аналоговые сигналы обычно 16 бит-слово.
         """
-        self.filter:Converter = None  #обработка значения (если необходима)
+        self._filter:Filter = None  #обработка значения (если необходима)
         self.__binds = []
         if isinstance(init_val,type):
             self._value = init_val( )
@@ -45,17 +73,21 @@ class Property():
             self._iec = iec_val
         self._read = read
         self._write = write
-        self._iec_write:callable = None
-        self.name: str = None
-        self.source:str = None
-        self.address:str = None
-        self.properties:dict = None
+        self._iec_write:callable|None = None
+        self.name: str|None = None
+        self.source:str|None = None
+        self.address:str|None = None
+        self.properties:dict|None = None
+        self.comment: str|None = None
         self.type = Property.TYPE_ANY    #< тип переменной (код, например 2 - float)
 
     def config(self, attr: dict = {}):
         try:
             for a in attr:
-                setattr(self, a, attr[a])
+                if hasattr(self,a):
+                    setattr(self, a, attr[a])
+                elif self.filter:
+                    self.filter.config(a,attr[a])
         except AttributeError as e:
             pass
 
@@ -127,9 +159,9 @@ class Property():
         return '%s(%s)' % (type(self).__name__, self._value )
 
     def iec(self)->Any:
-        if self.filter:
+        if self._filter is not None:
             try:
-                return self.filter.eu2raw(self.read( ),what=self)
+                return self._filter.eu2raw(self.read( ))
             except Exception as e:
                 return self.read( )
         
@@ -147,15 +179,21 @@ class Property():
         else:
             self._iec = iec_val
         #теперь необходимо преобразовать iec в value
-        if self.filter: 
+        if self._filter: 
             try:
-                self.write( self.filter.raw2eu(self._iec,what=self),remote=True)
+                self.write( self._filter.raw2eu(self._iec),remote=True)
             except Exception as e:
                 _log.warning( f'проблема в raw2eu {self.name}: {e}' )
                 self.write( self._iec ,remote=True)
         else:
             self.write( self._iec,remote = True )
-                
+    @property
+    def filter(self)->Filter:
+        return self._filter
+    @filter.setter
+    def filter(self,cls: Type[Filter]):
+        self._filter = cls(what=self, next = self._filter)
+        
     value = property(read,write)
     raw = property(iec,remote)
 

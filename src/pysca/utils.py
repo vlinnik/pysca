@@ -1,27 +1,19 @@
-from .bindable import Converter,Property
+from .bindable import Filter,Property
 
-class LinearScale(Converter):
-    def __init__(self):
-        super().__init__( )
+class LinearScale(Filter):
+    def __init__(self,*, what: Property = None, next: Filter = None):
+        super().__init__( what=what,next=next)
         self._rawLow = None
         self._rawHigh = None
         self._euLow = None
         self._euHigh = None
         self._decimals = 0
+        self._prop = what
 
-    def config(self, attr: dict = {}):
-        try:
-            for a in attr:
-                setattr(self, a, attr[a])
-        except AttributeError as e:
-            pass
-
-    def raw2eu(self, value: float,what: Property = None):
+    def raw2eu(self, value: float):
         if value is None:
             return value
-        
-        if what: self.config(what.properties)
-        
+                
         if self.rawLow is not None and value < self.rawLow:
             value = self.rawLow
         if self.rawHigh is not None and value > self.rawHigh:
@@ -33,12 +25,10 @@ class LinearScale(Converter):
         
         return round(value,self._decimals)
     
-    def eu2raw(self, value, what: Property = None):
+    def eu2raw(self, value):
         if value is None:
             return value
-    
-        if what: self.config(what.properties)
-        
+            
         if self.euLow is not None and value < self.euLow:
             value = self.euLow
         if self.euHigh is not None and value > self.euHigh:
