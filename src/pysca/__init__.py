@@ -16,6 +16,7 @@ from .utils import LinearScale
 from .device import PYPLC
 from .journal import MetricJournal
 from .events import MetricDairy
+from .alerts import AlertsJournal
 
 #работа с базой конфигурации проекта
 from sqlalchemy import String,Boolean,BLOB,Integer,create_engine,select,or_,exc,__version__ as sqlalchemy_version
@@ -84,6 +85,7 @@ class _Variables(_Base):
     address: Mapped[str] = mapped_column(String(128))
     logging: Mapped[bool] = mapped_column(Boolean)
     events: Mapped[bool] = mapped_column(Boolean)
+    alarms: Mapped[bool] = mapped_column(Boolean)
     properties: Mapped[BLOB] = mapped_column(BLOB)
 
 class _Animations(_Base):
@@ -142,6 +144,7 @@ class _pysca():
         self.NOW = self.var(time.time(),'NOW')
         self.journal:MetricJournal | None = None
         self.events:MetricDairy | None = None
+        self.alerts:AlertsJournal | None = None
     
     def __findChild(self,o: QObject, path: list[str] ):
         if o is None:
@@ -176,13 +179,8 @@ class _pysca():
             log.error('error in exec-code: %s (%s)',code,e)
     
     def eval(self,code: str, ctx:dict=None )->Any:
-        # try:
-        return eval( code, ctx if ctx else self._ , self.ctx )
-        # except Exception as e:
-        #     log.error('error in eval-code: %s (%s)',code, e)
-            
-        # return None
-        
+        return eval( code, self.ctx,  ctx if ctx else self._  )
+
     def context(self)->dict:
         return self._
     
@@ -198,7 +196,7 @@ class _pysca():
         
         for name,dev in self.devices.items():
             log.debug(f'инициализация источника {name}')
-            for p in self.ctx.values():
+            for p in list(self.ctx.values()):
                 if p.source == name:
                     dev.subscribe(p)
         
@@ -258,6 +256,9 @@ class _pysca():
                 
             if var.events==True and self.events:
                 p.filter = self.events.factory()
+                
+            if var.alarms==True and self.alerts:
+                p.filter = self.alerts.factory( )
 
             p.config(p.properties)
         
@@ -492,13 +493,16 @@ except FileNotFoundError as e:
     log.warning('cannot set workdir - not found') 
 
 if args.opentsdb!='none':
-    from .opentsdb import OpenTSDBJournal
+    from .opentsdb import OpenTSDBJournal, OpenTSDBAlerts
     app.journal = OpenTSDBJournal( args.opentsdb, args.otsdb_port )
-    app.journal.spawn(  )
+    app.journal.spawn( )
+    app.alerts = OpenTSDBAlerts( app.ctx, args.opentsdb, args.otsdb_port )
+    app.alerts.spawn( )
+
 
 if args.grafana!='none':
     from .grafanaevents import GrafanaAnnotations
-    app.events = GrafanaAnnotations(args.grafana_key,args.grafana,args.grafana_port)
+    app.events = GrafanaAnnotations(app.ctx , args.grafana_key,args.grafana,args.grafana_port)
     app.events.spawn( )
 
 try:

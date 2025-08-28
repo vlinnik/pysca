@@ -23,7 +23,7 @@ class Filter():
     def __setattr__(self, name: str, value: Any) -> None:
         try:
             super().__setattr__(name,value)
-        except AttributeError:
+        except AttributeError as e:
             if self._next is not None: 
                 setattr(self._next,name,value)
             else:
