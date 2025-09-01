@@ -363,7 +363,7 @@ class _pysca():
                             
             code = animation.data
             try:
-                resolved = eval(f'f\'{code}\'',None,dict(self.ctxOf(target,ctx)))
+                resolved = eval(f'f\'{code}\'',None,dict(self.ctxOf(obj,ctx)))
                 code = resolved
             except Exception as e:
                 pass
@@ -436,7 +436,7 @@ class _pysca():
                 log.error('ошибка при настройке события: объект(%s), событие(%s), выражение(%s): %s' % (signal.objectID,signal.signal,signal.data,e) )
                 # log.error('error in signal initialization %s(%s)' % (objectID,e) )
                 
-    def window(self,t:type | str | QWidget,objectID:str = None,ctx: dict = None, baseinstance: Any | None=None, later:bool=False, **kwargs)->'QWidget':
+    def window(self,t:type | str | QWidget,*, objectID:str = None,ctx: dict = None, baseinstance: Any | None=None, later:bool=False, parent:QWidget | None = None, **kwargs)->'QWidget':
         try:
             from AnyQt import uic
             if isinstance(t,type):
@@ -468,6 +468,11 @@ class _pysca():
                     self.queued.append( (w,objectID,ctx) )
             except exc.SQLAlchemyError as e:
                 log.error('error while initializing animations/signals: %s' % (e._message()))
+            
+            if parent is not None:
+                flags = w.windowFlags()
+                w.setParent(parent)
+                w.setWindowFlags(flags)
             
             return w
         except Exception as e:
