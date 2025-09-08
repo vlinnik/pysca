@@ -456,14 +456,7 @@ class _pysca():
                 if not later:
                     self.animate(w,objectID=objectID,ctx=ctx)
                     self.signals(w,objectID=objectID)
-                    for q,objectID,ctx in self.queued:
-                        try:
-                            ctx = dict(ctx)
-                            self.animate(q,objectID=objectID,ctx=ctx)
-                            self.signals(q,objectID=objectID,ctx=ctx)
-                        except Exception as e:
-                            log.warning(f'внимание: проблема в отложенном анимировании объекта object({objectID})')
-                    self.queued.clear()                        
+                    self.flush( )
                 else:
                     self.queued.append( (w,objectID,ctx) )
             except exc.SQLAlchemyError as e:
@@ -487,8 +480,24 @@ class _pysca():
             self.signals(obj,objectID=objectID,ctx=ctx)
         except exc.SQLAlchemyError as e:
             log.error('error while initializing animations/signals: %s' % (e._message()))        
-        
     
+    def flush(self):
+        for q,objectID,ctx in self.queued:
+            try:
+                if ctx is not None:
+                    ctx = dict(ctx)
+                else:
+                    ctx = { } 
+                    
+                if objectID not in ctx:
+                    ctx[objectID] = q
+                    
+                self.animate(q,objectID=objectID,ctx=ctx)
+                self.signals(q,objectID=objectID,ctx=ctx)
+            except Exception as e:
+                log.warning(f'внимание: проблема в отложенном анимировании объекта object({objectID})')
+        self.queued.clear()                        
+        
 app = _pysca( )
 
 try:

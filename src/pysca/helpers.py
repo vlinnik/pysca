@@ -33,7 +33,7 @@ def custom_widget( ui_file: str, base: type = QWidget ):
             super().__init__(parent,*args,**kwargs)
             uic.loadUi(ui_file,self)
             self.setParent(parent)
-            app.window(self,self.objectName(),self._ctx(),later=True)        
+            app.window(self,objectID=self.objectName(),ctx=self._ctx(),later=True)        
         def _ctx(self):
             for key in self.dynamicPropertyNames():
                 yield bytearray(key).decode(),self.property(key)
@@ -108,3 +108,41 @@ def custom_widget_plugin(widget: str | type, name:str,is_container:bool = False,
             return is_container
     
     return __CUSTOM_WIDGET_PLUGIN
+
+def user_window( ui_file: str, base: type = QWidget ): 
+    """Использование пользовательских окон, получаемых из ui-файлов. 
+    
+    Пример: Однотипные элементы (конвейеры) имеют одинаковое окно для настроек/управления. Можно создать conveyor_dialog.ui.
+    
+    Наследуем класс (в файле conveyor_dialog.py etc)
+    class CONVEYOR_DIALOG(user_window('conveyor_dialog.ui',QDialog)):
+        ...
+    и потом в событии click() указываем (не забыть в глобальном контексте from conveyor_dialog import CONVEYOR_DIALOG)
+    CONVEYOR_DIALOG().exec( )
+    Именованные параметры, которые kwargs будут установлены как динамические свойства, например
+    CONVEYOR_DIALOG(prefix='CONVEYOR_2').exec( ) диалог будет иметь динамическое свойство prefix, и в анимациях можно
+    указывать шаблонное выражение '{prefix}_ON' 
+        
+    Args:
+        ui_file (str): ui-файл, из которого создается пользовательский виджет
+        base (type QWidget-derived): от чего наследуется создаваемый класс, default QWidget, должно быть как в ui
+    """
+    from AnyQt import uic
+    
+    class __UserWindow(base):
+        def __init__(self,parent: QWidget = None,*args,**kwargs):
+            from pysca import app
+            super().__init__(parent,*args)
+            uic.loadUi(ui_file,self)
+            flags = self.windowFlags()
+            self.setParent(parent)
+            self.setWindowFlags(flags)
+            for key,item in kwargs.items():
+                self.setProperty(key,item)
+            app.window(self,objectID=self.objectName(),ctx=dict(self._ctx()))
+            
+        def _ctx(self):
+            for key in self.dynamicPropertyNames():
+                yield bytearray(key).decode(),self.property(key)
+
+    return __UserWindow
