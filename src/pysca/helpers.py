@@ -2,6 +2,18 @@ import os
 from AnyQt.QtWidgets import QWidget
 
 def register_user_widgets(ui_dir: str,ctx:dict,*,include:str|None = None):
+    """В указанной  папке взять все ui-файлы и сделать из них custom_widget_plugin
+    
+    Если include указать, то необходимо чтобы в том файле были классы, которые совпадают
+    с именем ui-файла (UserWidget.ui -> class UserWidget чувствителен к регистру). Имя класса
+    в ui файлах также должно совпадать. Можно указать имя, откуда вызван register_user_widgets,
+    т.к. в нем создаются эти классы через custom_widget.
+    
+    Args:
+        ui_dir (str): где искать ui файлы
+        ctx (dict): всегда = globals()
+        include (str | None, optional): В генерируемом python-коде откуда имортировать реализацию. Defaults to None.
+    """
     for filename in os.listdir(ui_dir):
         filepath = os.path.join(ui_dir, filename)
         if os.path.isfile(filepath):
