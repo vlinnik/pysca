@@ -1,8 +1,18 @@
-from typing import Callable
+import os
 from AnyQt.QtWidgets import QWidget
-from AnyQt.QtCore import QObject
 
-def custom_widget( ui_file: str, base: type = QWidget ): 
+def register_user_widgets(ui_dir: str,ctx:dict,*,include:str|None = None):
+    for filename in os.listdir(ui_dir):
+        filepath = os.path.join(ui_dir, filename)
+        if os.path.isfile(filepath):
+            name, ext = os.path.splitext(filename)
+            if ext in ['.ui']:  # уточни нужные расширения
+                var_name = f"__{name}Plugin"
+                widget = custom_widget(filepath)
+                ctx[var_name] = custom_widget_plugin(widget, name=name,include=include or name.lower())
+                ctx[name] = widget
+
+def custom_widget( ui_file: str, base: type = None ): 
     """Использование на окне пользовательских виджетов, получаемых из ui-файлов. Применяется в связке с custom_widget_plugin
     
     Пример: на форме есть однотипные элементы состоящие из кнопки on & off. Можно создать ON_OFF.ui.
@@ -26,6 +36,9 @@ def custom_widget( ui_file: str, base: type = QWidget ):
         base (type QWidget-derived): от чего наследуется создаваемый класс, default QWidget
     """
     from AnyQt import uic
+
+    if base is None:
+        _,base = uic.loadUiType(ui_file)
     
     class __CustomWidget(base):
         def __init__(self,parent: QWidget = None,*args,**kwargs):
@@ -137,9 +150,7 @@ def user_window( ui_file: str, base: type = QWidget ):
             flags = self.windowFlags()
             self.setParent(parent)
             self.setWindowFlags(flags)
-            for key,item in kwargs.items():
-                self.setProperty(key,item)
-            app.window(self,objectID=self.objectName(),ctx=dict(self._ctx()))
+            app.window(self,objectID=self.objectName(),ctx=dict(self._ctx()),**kwargs)
             
         def _ctx(self):
             for key in self.dynamicPropertyNames():

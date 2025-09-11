@@ -452,6 +452,10 @@ class _pysca():
                     return 
             elif isinstance(t,QWidget):
                 w = t    
+
+            for key,item in kwargs.items():
+                w.setProperty(key,item)
+                
             try:
                 if not later:
                     self.animate(w,objectID=objectID,ctx=ctx)
