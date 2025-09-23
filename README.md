@@ -1,2 +1,2 @@
 Эскиз проекта визуализации-демонстрации для выбора механизмов работы SCADA используя
-только Python + AnyQt/PySide/PyQt
+только Python + qtpy/PySide/PyQt

@@ -1,5 +1,8 @@
-from AnyQt.QtWidgets import QApplication,QWidget
-from AnyQt.QtCore import QObject,QResource,QVariant,QTimer,Qt,QThread
+import os
+os.environ["QT_API"] = "pyqt6"
+
+from qtpy.QtWidgets import QApplication,QWidget
+from qtpy.QtCore import QObject,QResource,QVariant,QTimer,Qt
 from datetime import datetime
 import time
 import sys,os,glob,re,types
@@ -427,7 +430,7 @@ class _pysca():
                         pass                    
                     if re.match("@(\\w+(\\.\\w+)*)",code):
                         code = re.sub("@(\\w+(\\.\\w+)*)","\\1.value",code)
-                    self.slots.append(QObjectSignalHandler(target,signal.signal,code,self.context,self.ctx))
+                    self.slots.append(QObjectSignalHandler(target,signal.signal,code,self.context,self.ctx,this = obj))
                 else:
                     log.error('для события нет объекта: объект(%s), событие(%s), выражение(%s)' % (signal.objectID,signal.signal,signal.data) )
                     # log.warning(f'no {signal.objectID} in {obj.objectName()}')
@@ -438,7 +441,7 @@ class _pysca():
                 
     def window(self,t:type | str | QWidget,*, objectID:str = None,ctx: dict = None, baseinstance: Any | None=None, later:bool=False, parent:QWidget | None = None, **kwargs)->'QWidget':
         try:
-            from AnyQt import uic
+            from qtpy import uic
             if isinstance(t,type):
                 if len(kwargs)>0:
                     w = t( **kwargs )

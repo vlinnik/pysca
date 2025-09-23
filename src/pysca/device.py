@@ -1,4 +1,4 @@
-from AnyQt.QtCore import QTimer
+from qtpy.QtCore import QTimer
 from typing import Any
 from pyplc.utils.subscriber import Subscriber
 from .bindable import Property

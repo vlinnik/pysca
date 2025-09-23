@@ -1,5 +1,5 @@
 import os
-from AnyQt.QtWidgets import QWidget
+from qtpy.QtWidgets import QWidget
 
 def register_user_widgets(ui_dir: str,ctx:dict,*,include:str|None = None):
     """В указанной  папке взять все ui-файлы и сделать из них custom_widget_plugin
@@ -47,7 +47,8 @@ def custom_widget( ui_file: str, base: type = None ):
         ui_file (str): ui-файл, из которого создается пользовательский виджет
         base (type QWidget-derived): от чего наследуется создаваемый класс, default QWidget
     """
-    from AnyQt import uic
+    # from qtpy import uic
+    from .uic import uic
 
     if base is None:
         _,base = uic.loadUiType(ui_file)
@@ -85,10 +86,9 @@ def custom_widget_plugin(widget: str | type, name:str,is_container:bool = False,
     Returns:
         НОВЫЙ_КЛАСС: созданный класс-потомок QPyDesignerCustomWidgetPlugin
     """
-    from AnyQt.QtDesigner import QPyDesignerCustomWidgetPlugin
-    from AnyQt.QtGui import QIcon
-    from AnyQt.QtWidgets import QWidget
-    from AnyQt import uic
+    from qtpy.QtDesigner import QPyDesignerCustomWidgetPlugin
+    from qtpy.QtGui import QIcon
+    from qtpy.QtWidgets import QWidget
     
     class __CUSTOM_WIDGET_PLUGIN(QPyDesignerCustomWidgetPlugin):
         def __init__(self, parent = None):
@@ -152,7 +152,8 @@ def user_window( ui_file: str, base: type = QWidget ):
         ui_file (str): ui-файл, из которого создается пользовательский виджет
         base (type QWidget-derived): от чего наследуется создаваемый класс, default QWidget, должно быть как в ui
     """
-    from AnyQt import uic
+    #from qtpy import uic
+    from .uic import uic
     
     class __UserWindow(base):
         def __init__(self,parent: QWidget = None,*args,**kwargs):

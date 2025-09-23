@@ -2,17 +2,17 @@ from typing import Any, List, Type,Dict
 from enum import IntEnum
 from .bindable import Property, Filter, Expressions
 from .journal import MetricFilter
-from AnyQt.QtCore import QObject, QThread, pyqtSignal, pyqtSlot, QTimer,QCoreApplication
+from qtpy.QtCore import QObject, QThread, Signal, Slot, QCoreApplication
 from time import time
 
 class EventSource(QObject):
-    done = pyqtSignal(int) 
+    done = Signal(int) 
     def __init__(self, trigger: 'EventTrigger', parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.done.connect(self._done) #type: ignore
         self._trigger = trigger
     
-    @pyqtSlot(int)
+    @Slot(int)
     def _done(self,id:int):
         self._trigger.last_id = id
         self._trigger._active = True
@@ -151,7 +151,7 @@ class EventTrigger(MetricFilter):
         self.tags = tags
         
 class MetricDairy(QObject):
-    dairy = pyqtSignal(Event)
+    dairy = Signal(Event)
 
     def __init__(self, ctx: Expressions, parent = None):
         super().__init__( parent )
@@ -160,7 +160,7 @@ class MetricDairy(QObject):
         self._thread:QThread
         self._ctx: Expressions = ctx
 
-    @pyqtSlot(Event)
+    @Slot(Event)
     def _event(self, event: Event):
         # event.source.done.emit( -1 )
         pass
@@ -175,15 +175,15 @@ class MetricDairy(QObject):
                 super().__init__(what=what, next=next, target=this)
         return _EventTrigger
 
-    @pyqtSlot()
+    @Slot()
     def flush(self):
         pass
         
-    @pyqtSlot()
+    @Slot()
     def start(self):
         pass
 
-    @pyqtSlot()
+    @Slot()
     def stop(self):
         if self._thread is not None:
             self._thread.quit()

@@ -2,7 +2,7 @@ from typing import Any, List, Type,Callable,Dict
 from enum import IntEnum
 from .bindable import Property, Filter, Expressions
 from .journal import MetricFilter
-from AnyQt.QtCore import QObject, QThread, pyqtSignal, pyqtSlot, QTimer,QCoreApplication
+from qtpy.QtCore import QObject, QThread, Signal, Slot, QTimer,QCoreApplication
 from time import time
 from queue import Queue
 
@@ -38,7 +38,7 @@ class AlertTimer(QObject):
         else:
             self._timer.stop( )
         
-    @pyqtSlot()
+    @Slot()
     def _timeout(self):
         self._target.dairy.emit( self._pending )
         
@@ -156,7 +156,7 @@ class AlertRule(MetricFilter):
             pass
         
 class AlertsJournal(QObject):
-    dairy = pyqtSignal(Alert)
+    dairy = Signal(Alert)
 
     def __init__(self, ctx: Expressions, parent = None):
         super().__init__( parent )
@@ -166,7 +166,7 @@ class AlertsJournal(QObject):
         self._thread:QThread
         self._ctx: Expressions = ctx
 
-    @pyqtSlot(Alert)
+    @Slot(Alert)
     def _alert(self, alert: Alert):
         if alert.item not in self._metrics:
             self._metrics[alert.item] = alert
@@ -181,7 +181,7 @@ class AlertsJournal(QObject):
                 super().__init__(this, what=what, next=next)
         return _AlertRule
 
-    @pyqtSlot()
+    @Slot()
     def flush(self):
         while not self.queue.empty():
             id = self.queue.get_nowait( )
@@ -191,14 +191,14 @@ class AlertsJournal(QObject):
         for id,alert in self._metrics.items():
             self._alert(alert)
         
-    @pyqtSlot()
+    @Slot()
     def start(self):
         _timer = QTimer(self)
         _timer.timeout.connect(self.flush)
         _timer.start(60000)
         self._timer = _timer
 
-    @pyqtSlot()
+    @Slot()
     def stop(self):
         if self._thread is not None:
             self._timer.stop()

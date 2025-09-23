@@ -1,7 +1,7 @@
-from AnyQt.QtCore import QObject,QMetaObject,QEvent,QDynamicPropertyChangeEvent,cast
-from AnyQt.QtWidgets import QGraphicsBlurEffect
+from qtpy.QtCore import QObject,QMetaObject,QEvent,QDynamicPropertyChangeEvent
+from qtpy.QtWidgets import QGraphicsBlurEffect
 from .flexeffect import FlexEffect
-from typing import Callable
+from typing import Callable,cast
 from .bindable import Property
 
 class QObjectDynamicPropertyHelper(QObject):
@@ -136,13 +136,14 @@ class QObjectSignalHandler():
     
     Код может содержать ссылки на параметры signal, arg1 например первый параметр.
     """
-    def __init__(self,obj: QObject, signal: str, code: str , globals: Callable[[],dict], ctx = None) -> None:
+    def __init__(self,obj: QObject, signal: str, code: str , globals: Callable[[],dict], ctx = None,this = None,**kwargs) -> None:
         mo = obj.metaObject()
         ms = mo.method( mo.indexOfSignal(QMetaObject.normalizedSignature(signal) ) )
         self.code = code
-        self.obj = obj
-        self.ctx = ctx
-        self.globals = globals
+        self.obj = obj           #тот чье событие обслуживается
+        self.ctx = ctx           #все переменнные (ввода-вывода)
+        self.globals = globals   #глобальный символы приложения (там где app можно взять)
+        self.this = this         #самый первый объект (чтобы кнопка могла получить быстрый доступ к topMost окну)
         
         self.args = [ x[0].data().decode() if x[0].size()>0 else f'arg{x[1]+1}' for x in zip(list(ms.parameterNames( )),range(ms.parameterCount()))]
         self.connection = getattr(obj,ms.name().data().decode()).connect( self )
@@ -162,5 +163,7 @@ class QObjectSignalHandler():
         args = { }
         for arg in zip(self.args,_):
             args[arg[0]] = arg[1]
+        args['self'] = self.obj
+        args['this'] = self.this
         
         exec( self.code, dict(self.ctx, **self.globals()) , args )

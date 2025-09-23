@@ -1,7 +1,7 @@
 from typing import Any, List, Type
 from enum import IntEnum
 from .bindable import Property, Filter
-from AnyQt.QtCore import QObject, QThread, pyqtSignal, pyqtSlot, QTimer,QCoreApplication
+from qtpy.QtCore import QObject, QThread, Signal, Slot, QTimer,QCoreApplication
 
 class JournalEvent:
     class Sources(IntEnum):
@@ -80,7 +80,7 @@ class JournalFilter(MetricFilter):
         return super().eu2raw(eu)
     
 class MetricJournal(QObject):
-    book = pyqtSignal(JournalEvent)
+    book = Signal(JournalEvent)
 
     def __init__(self, parent = None):
         super().__init__(parent )
@@ -89,11 +89,11 @@ class MetricJournal(QObject):
         self._thread: QThread
         self._timer: QTimer
 
-    @pyqtSlot(JournalEvent)
+    @Slot(JournalEvent)
     def _journal(self, event: JournalEvent):
         pass
 
-    @pyqtSlot()
+    @Slot()
     def flush(self):
         pass
     
@@ -107,14 +107,14 @@ class MetricJournal(QObject):
                 super().__init__(this, what=what, next=next)
         return _JournalFilter
         
-    @pyqtSlot()
+    @Slot()
     def start(self):
         _timer = QTimer(self)
         _timer.timeout.connect(self.flush)
         _timer.start(60000)
         self._timer = _timer
         
-    @pyqtSlot()
+    @Slot()
     def stop(self):
         if self._thread is not None:
             self._timer.stop()

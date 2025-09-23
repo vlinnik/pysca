@@ -38,7 +38,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = ['AnyQt', 'sqlalchemy','pyplc']
+dependencies = ['qtpy', 'sqlalchemy','pyplc']
 
 [project.urls]
 "Homepage" = "https://github.com/vlinnik/pysca"

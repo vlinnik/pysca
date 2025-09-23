@@ -1,7 +1,7 @@
 
 def main():
     from . import app
-    from AnyQt.QtCore import QResource
+    from qtpy.QtCore import QResource
     import argparse
     parser = argparse.ArgumentParser(
                         prog='PYSCA Project',

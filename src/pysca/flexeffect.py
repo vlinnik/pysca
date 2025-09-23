@@ -1,12 +1,14 @@
-from AnyQt.QtWidgets import QWidget, QGraphicsBlurEffect,QGraphicsEffect,QGraphicsOpacityEffect,QGraphicsColorizeEffect,QGraphicsDropShadowEffect
-from AnyQt.QtGui import QPalette
-from AnyQt.QtCore import Qt,QObject,QPropertyAnimation,Property #,Signal,Slot
+from qtpy.QtWidgets import QWidget, QGraphicsBlurEffect,QGraphicsEffect,QGraphicsOpacityEffect,QGraphicsColorizeEffect,QGraphicsDropShadowEffect
+from qtpy.QtGui import QPalette
+from qtpy.QtCore import Qt,QObject,QPropertyAnimation,Property #,Signal,Slot
 
 from enum import Flag,Enum,auto
-try:
-    from AnyQt.QtCore import Q_FLAGS as pyqtEnum
-except:
-    from AnyQt.QtCore import  pyqtEnum
+
+import qtpy
+if qtpy.API == "pyqt6":
+    from PyQt6.QtCore import pyqtEnum
+if qtpy.API == "pyqt5":
+    from PyQt5.QtCore import Q_ENUM as pyqtEnum
 
 class _AffineEffect(QGraphicsEffect):
     def __init__(self, angle:float=None, parent = ...):
@@ -249,14 +251,14 @@ class FlexEffect(QObject):
     duration = Property(int,get_duration,set_duration)
         
 if __name__=='__main__':
-    from AnyQt.QtWidgets import QApplication,QCheckBox
+    from qtpy.QtWidgets import QApplication,QCheckBox
     app = QApplication([])
     win = QWidget( )
     target = QCheckBox('activate',parent=win)
     flex = FlexEffect( target )
     flex.set_duration(0)
-    flex.set_effect(EffectType.Opacity)
-    flex.set_strength(1)
+    flex.set_effect(EffectType.Glow)
+    flex.set_strength(15)
     target.setChecked(flex.get_active( ))
     target.toggled.connect(flex.set_active)
     win.show( )
