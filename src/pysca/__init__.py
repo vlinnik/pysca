@@ -1,6 +1,4 @@
 import os
-os.environ["QT_API"] = "pyqt6"
-
 from qtpy.QtWidgets import QApplication,QWidget
 from qtpy.QtCore import QObject,QResource,QVariant,QTimer,Qt
 from datetime import datetime

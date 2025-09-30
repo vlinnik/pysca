@@ -15,7 +15,7 @@ class QObjectDynamicPropertyHelper(QObject):
     
     def eventFilter(self, obj, e)->bool:
         if e.type()==QEvent.Type.DynamicPropertyChange:
-            mp:QDynamicPropertyChangeEvent = cast(e,QDynamicPropertyChangeEvent)
+            mp:QDynamicPropertyChangeEvent = cast(QDynamicPropertyChangeEvent,e)
             name = mp.propertyName().data().decode()
             if name in self._map:
                 self._map[name]( self.parent().property(name))
