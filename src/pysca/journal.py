@@ -78,7 +78,7 @@ class JournalFilter(MetricFilter):
         if self.metric is not None and self.name is not None:
             self.emit(JournalEvent(self.name, self.metric, eu, source=JournalEvent.Sources.SOURCE_USER))
         return super().eu2raw(eu)
-    
+        
 class MetricJournal(QObject):
     book = Signal(JournalEvent)
 
