@@ -1,18 +1,11 @@
 import click
-# from click_config_file import configuration_option
 import yaml
 
 import sys
 import os
 from qtpy.QtWidgets import QApplication,QMessageBox
-from pysca import app,log
+from pysca import app
 from sqlalchemy import exc
-
-# def yaml_provider(file_path, cmd_name):
-#     with open(file_path, 'r', encoding='utf-8') as f:
-#         config = yaml.safe_load(f) or {}
-
-#     return config.get(cmd_name, {}) if cmd_name in config else config
 
 def run():
     for dname in app.devices:
@@ -30,7 +23,7 @@ def run():
 @click.option('--opentsdb', nargs=1,metavar='<ip>[:port]', default=None, help='IP-адрес и порт OpenTSDB')
 @click.option('--grafana', nargs=1,metavar='<ip>[:port]', default=None, help='IP-адрес и порт Grafana')
 @click.option('--grafana-key',nargs=1,default=None, metavar='<grafana api admin/editor token>',help='API-Token для записи событий в grafana')
-@click.option('--devices',type=click.Path(exists=True),help='Путь к YAML-файлу настроек устройств')
+@click.option('--devices',type=click.Path(exists=True),default=None,help='Путь к YAML-файлу настроек устройств')
 @click.pass_context
 def cli(ctx,settings,**kwargs):
     if settings:
@@ -45,8 +38,8 @@ def cli(ctx,settings,**kwargs):
             
         if 'devices' in config:
             params = config['devices']
-            for config in params:
-                ctx.invoke(devices,**config)
+            for dev in params:
+                ctx.invoke(device,**dev)
 
         if ctx.invoked_subcommand is None:
             if 'navbar' in config:
@@ -64,7 +57,7 @@ def cli(ctx,settings,**kwargs):
 @click.option('--opentsdb', nargs=1,metavar='<ip>[:port]', default=None, help='IP-адрес и порт OpenTSDB')
 @click.option('--grafana', nargs=1,metavar='<ip>[:port]', default=None, help='IP-адрес и порт Grafana')
 @click.option('--grafana-key',nargs=1,default=None, metavar='<grafana api admin/editor token>',help='API-Token для записи событий в grafana')
-@click.option('--devices',type=click.Path(exists=True),help='Путь к YAML-файлу настроек устройств')
+@click.option('--devices',type=click.Path(exists=True),default=None,help='Путь к YAML-файлу настроек устройств')
 @click.pass_context
 def main(ctx,conf,workdir,opentsdb,grafana,grafana_key,devices):
     if workdir:
@@ -122,18 +115,25 @@ def main(ctx,conf,workdir,opentsdb,grafana,grafana_key,devices):
 @cli.command()
 @click.argument('pages',nargs=-1, type=click.Path(exists=True),required=False)
 @click.option('--title', type=click.STRING,required=False)
+@click.option('--tool',multiple=True, type=click.Path(exists=True),required=False)
 @click.pass_context
-def navbar(ctx,pages,title):
-    from .navbar import append,instance
+def navbar(ctx,pages,title,tool):
+    from .navbar import append,instance,tools
     for p in pages:
-        p = app.window(p)
-        if not p:
+        w = app.window(p)
+        if not w:
             continue
-        append(p)
-        globals()[p.objectName()] = p
+        append(w)
+        globals()[w.objectName()] = w
+    for t in tool:
+        w = app.window(t)
+        if not w:
+            continue
+        tools(w)
     if title:
         instance.setWindowTitle(f'{title}')
     instance.show()
+    globals()['_MAIN_'] = instance
     run()
         
 @cli.command()
@@ -151,6 +151,7 @@ def multihead(ctx,pages,title):
     if title:
         instance.setWindowTitle(f'{title}')
     instance.show()
+    globals()['_MAIN_'] = instance
     run()
     
 def pyplc_device(*_,device,port=9004,scan=100,**kwargs):
@@ -196,50 +197,6 @@ if __name__ == '__main__':
     qapp = QApplication(sys.argv)
     try:
         cli()
-        pass
     except Exception as e:
         QMessageBox.critical(None,'Что-то пошло не так',f'{e}')
         click.echo(e,err=True)
-
-def __main():
-    from . import app
-    from qtpy.QtCore import QResource
-    import argparse
-    parser = argparse.ArgumentParser(
-                        prog='PYSCA Project',
-                        description='Запуск проекта визуализации на Python+Qt',
-                        epilog='Пример: python -m pysca')
-
-    parser.add_argument('forms',help='Загружаемые окна',nargs='+')
-    parser.add_argument('-w','--workdir',action='store', help='Рабочий каталог проекта')
-    parser.add_argument('--conf',action='store', help='Конфигурационная база проекта (переменные, анимации, короткие события)')
-    parser.add_argument('--resources',action='store',default='', help='Файл ресурсов')
-    parser.add_argument('--start',action='store', help='Какое окно главное')
-    parser.add_argument('--init',action='store',default='', help='Выполнить')
-    
-    args,ignored = parser.parse_known_args()
-    
-    import os.path
-    if os.path.isfile(args.resources):
-        QResource.registerResource(args.resources)
-    
-    _g = globals()
-    startup = None
-    for file in args.forms:
-        w = app.window(file)
-        if w:
-            _g[w.objectName()] = w
-            if startup is None:startup = w
-            if args.start==w.objectName():
-                startup = w
-                
-    if args.init:
-        with open(args.init) as f:
-            exec(f.read(),globals())
-            
-    if startup: 
-        startup.show( )        
-        app.start( ctx = globals() )
-
-# if __name__=='__main__': 
-#     main()

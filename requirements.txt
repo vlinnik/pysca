@@ -1,6 +1,6 @@
 qtpy
 sqlalchemy
-pyplc
 opentsdb_client
 grafana_client
 click
+pyaml

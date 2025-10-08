@@ -1,6 +1,6 @@
 from qtpy.QtCore import QTimer
 from typing import Any
-from pyplc.utils.subscriber import Subscriber
+from .pyplc.subscriber import Subscriber
 from .bindable import Property
 from time import time
 
