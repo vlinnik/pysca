@@ -7,7 +7,13 @@ from qtpy.QtWidgets import QApplication,QMessageBox
 from pysca import app
 from sqlalchemy import exc
 
-def run():
+@click.pass_context
+def run(ctx):
+    for m in ctx.obj['modules']:
+        if hasattr(m,'initialize') and callable(getattr(m,'initialize')):
+            m.initialize( ctx=globals() )
+        
+        
     for dname in app.devices:
         app.devices[dname].start( )
         
@@ -15,6 +21,10 @@ def run():
     
     for dname in app.devices:
         app.devices[dname].stop( )
+        
+    if 'logic' in ctx.obj:
+        logic = ctx.obj['logic']
+        logic.terminate( )
 
 @click.group(invoke_without_command=True)
 @click.option('--settings',type=click.Path(exists=True),help='Путь к YAML-файлу настроек')
@@ -24,6 +34,8 @@ def run():
 @click.option('--grafana', nargs=1,metavar='<ip>[:port]', default=None, help='IP-адрес и порт Grafana')
 @click.option('--grafana-key',nargs=1,default=None, metavar='<grafana api admin/editor token>',help='API-Token для записи событий в grafana')
 @click.option('--devices',type=click.Path(exists=True),default=None,help='Путь к YAML-файлу настроек устройств')
+@click.option('--module',multiple=True, default=None,help='Модуль расширения для загрузки во время инициализации')
+@click.option('--simulator',is_flag=True,default=False,help='Запустить имитацию логики')
 @click.pass_context
 def cli(ctx,settings,**kwargs):
     if settings:
@@ -31,6 +43,7 @@ def cli(ctx,settings,**kwargs):
         with open(settings, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f) or {}
         ctx.obj['config'] = config
+        ctx.obj['modules'] = []
 
         if 'main' in config:
             params = config['main']
@@ -58,8 +71,10 @@ def cli(ctx,settings,**kwargs):
 @click.option('--grafana', nargs=1,metavar='<ip>[:port]', default=None, help='IP-адрес и порт Grafana')
 @click.option('--grafana-key',nargs=1,default=None, metavar='<grafana api admin/editor token>',help='API-Token для записи событий в grafana')
 @click.option('--devices',type=click.Path(exists=True),default=None,help='Путь к YAML-файлу настроек устройств')
+@click.option('--module',multiple=True, default=None,help='Модуль расширения для загрузки во время инициализации')
+@click.option('--simulator',is_flag=True,default=False,help='Запустить имитацию логики')
 @click.pass_context
-def main(ctx,conf,workdir,opentsdb,grafana,grafana_key,devices):
+def main(ctx,conf,workdir,opentsdb,grafana,grafana_key,devices,module,simulator):
     if workdir:
         os.chdir(workdir)
         click.echo(f'\tРабочая директория установлена: {os.getcwd()}')
@@ -111,7 +126,28 @@ def main(ctx,conf,workdir,opentsdb,grafana,grafana_key,devices):
             click.echo(f'failed to open configuration',err=True)
     else:
         click.echo('\tФайл конфигурации не указан!')
-        
+
+    if module:
+        import importlib
+        for item in module:
+            m = item['import']
+            params = item.get('params',{})
+            try:
+                # Импортируем модуль по имени
+                mod = importlib.import_module(m)
+                # Проверяем, есть ли функция initialize
+                if hasattr(mod, 'createInstance') and callable(getattr(mod, 'createInstance')):
+                    ctx.obj['modules'].append(mod.createInstance(**params))
+                else:
+                    click.echo(f"В модуле {m} нет функции createInstance")
+            except ImportError:
+                click.echo(f"Ошибка: Модуль {m} не найден")
+            except Exception as e:
+                click.echo(f"Ошибка при выполнении createInstance в модуле {m}: {str(e)}")                
+    if simulator:
+        import subprocess
+        ctx.obj['logic'] = subprocess.Popen(["python3", "src/krax.py"])
+            
 @cli.command()
 @click.argument('pages',nargs=-1, type=click.Path(exists=True),required=False)
 @click.option('--title', type=click.STRING,required=False)
