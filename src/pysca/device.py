@@ -5,12 +5,13 @@ from .bindable import Property
 from time import time
 
 class PYPLC(Subscriber):
-    def __init__(self, host, port=9004,timeout=10):
+    def __init__(self, host, port=9004,timeout=10,scan:int=100):
         super().__init__(host, port,i_size=4096,o_size=512)
         self._timer = QTimer()
         self._timer.timeout.connect(self)
         self._timestamp = time()
         self._timeout = timeout
+        self._scan = scan
 
     def subscribe(self, p: Property, **kwargs):
         s = super().subscribe(p.address, p.name)
@@ -19,8 +20,8 @@ class PYPLC(Subscriber):
         s.bind(p.remote)  # при изменении в контроллере записать в переменную
         p.changed(s.write) # при записи в переменную оповещать 
 
-    def start(self, msec: int = 200):
-        self._timer.start(msec)
+    def start(self, msec: int|None = None):
+        self._timer.start(msec if msec else self._scan)
 
     def stop(self):
         self.close()
