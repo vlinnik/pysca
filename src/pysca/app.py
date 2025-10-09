@@ -107,6 +107,12 @@ class _Signals(_Base):
 log = console('pysca')
 log.info(f'Initializing PySCA {version}, SqlAlchemy {sqlalchemy_version}')
 
+if not QApplication.instance():
+    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+    qApp = QApplication(sys.argv)
+else:
+    qApp = QApplication.instance()
+
 class App():
     def __init__(self):
         self.animations = []
@@ -125,6 +131,11 @@ class App():
         self.journal:MetricJournal | None = None
         self.events:MetricDairy | None = None
         self.alerts:AlertsJournal | None = None
+        self._configured = False
+        
+    def _ensure_configured(self):
+        if not self._configured:
+            self.config('default.scada')
     
     def __findChild(self,o: QObject, path: list[str] ):
         if o is None:
@@ -250,6 +261,7 @@ class App():
             log.debug(f'loading resources file {rcc_dir}/{rcc}/{mod_name}')
             sys.modules[mod_name] = types.ModuleType(mod_name)
             QResource.registerResource(f'{rcc_dir}/{rcc}')
+        self._configured = True
 
     def ctxOf(self,target, ctx: dict =None):
         for key in target.dynamicPropertyNames():
@@ -329,6 +341,7 @@ class App():
         if objectID not in ctx:
             ctx[objectID] = obj
             
+        self._ensure_configured( )
         helpers = dict[str,QObjectDynamicPropertyHelper]( )
         animations = select(_Animations).where( or_(_Animations.objectID.startswith(objectID+"."),_Animations.objectID==(objectID)) )
         
@@ -393,7 +406,8 @@ class App():
         
         if ctx is None:
             ctx = { }
-                    
+
+        self._ensure_configured( )
         signals = select(_Signals).where( or_(_Signals.objectID.startswith(objectID+"."),_Signals.objectID==(objectID)) )
         for signal in self.session.scalars(signals):
             try:
@@ -419,6 +433,7 @@ class App():
     def window(self,t:type | str | QWidget,*, objectID:str = None,ctx: dict = None, baseinstance: Any | None=None, later:bool=False, parent:QWidget | None = None, **kwargs)->'QWidget':
         try:
             from qtpy import uic
+            self._ensure_configured()
             if isinstance(t,type):
                 if len(kwargs)>0:
                     w = t( **kwargs )

@@ -45,4 +45,4 @@ dependencies = ['qtpy', 'sqlalchemy','click','opentsdb_client','grafana_client']
 "Bug Tracker" = "https://github.com/vlinnik/pysca/issues"
 
 [project.scripts]
-pysca = "pysca.__main__:main"
+pysca = "pysca.cli.__main__:entry"
