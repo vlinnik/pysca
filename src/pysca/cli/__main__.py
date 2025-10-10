@@ -46,7 +46,7 @@ def run(ctx):
 def cli(ctx,settings,workdir,**kwargs):
     if workdir:
         os.chdir(workdir)
-        click.echo(f'\tРабочая директория установлена: {os.getcwd()}')
+        click.echo(f'   Рабочая директория установлена: {os.getcwd()}')
 
     ctx.ensure_object(dict)
     ctx.obj['modules'] = []
@@ -59,8 +59,11 @@ def cli(ctx,settings,workdir,**kwargs):
         if 'main' in config:
             params:dict = config['main']
             if 'workdir' in params:
-                os.chdir(params.pop('workdir'))
-                click.echo(f'\tРабочая директория установлена: {os.getcwd()}')
+                if not workdir:
+                    os.chdir(params.pop('workdir'))
+                    click.echo(f'   Рабочая директория установлена: {os.getcwd()}')
+                else:
+                    params.pop('workdir')
             ctx.invoke(start,**params)
             
         if 'devices' in config:
@@ -135,13 +138,13 @@ def start(ctx,conf,opentsdb,grafana,grafana_key,simulator):
 
     if conf:
         manager.watch(conf)
-        click.echo(f'\tФайл конфигурации: {conf}')
+        click.echo(f'   Файл конфигурации: {conf}')
         try:
             app.config( conf )
         except exc.SQLAlchemyError as e:
             click.echo(f'failed to open configuration',err=True)
     else:
-        click.echo('\tФайл конфигурации не указан!')
+        click.echo('   Файл конфигурации не указан!')
         
     if simulator:
         import subprocess

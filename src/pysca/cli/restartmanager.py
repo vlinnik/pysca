@@ -2,6 +2,7 @@ import os
 import threading
 import sys
 from typing import List
+import time
 
 # Зависимости: pip install watchdog pystray Pillow
 from watchdog.observers import Observer
@@ -45,11 +46,20 @@ class FileWatcherTray:
         self.cmd = sys.argv
         
     def run(self):
-        self.icon.run( )
+        while True:
+            self.icon.run( )
+            print(self.cmd[0],self.cmd[1:])
+            os.execv( self.cmd[0],self.cmd[0:])
+            break
+            # proc = subprocess.Popen([sys.executable]+self.cmd)
+            # try:
+            #     proc.wait(1)
+            # except subprocess.TimeoutExpired:
+            #     break
+                
+        # proc.poll()
         self.quit()
         self.stop( )
-        print('restarting:',self.cmd)
-        subprocess.Popen(self.cmd)
         
 
     def create_tray(self):
