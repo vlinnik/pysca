@@ -8,6 +8,10 @@ from sqlalchemy import exc
 
 from pysca.cli.devices import device
 from pysca.cli.modules import module
+from qtpy.QtWidgets import qApp
+from pysca.cli.restartmanager import FileWatcherTray
+
+manager = FileWatcherTray(qApp.quit)
 
 @click.pass_context
 def run(ctx):
@@ -18,8 +22,10 @@ def run(ctx):
         
     for dname in app.devices:
         app.devices[dname].start( )
-        
+
+    manager.start( )
     app.start(ctx=globals())
+    manager.stop( )
     
     for dname in app.devices:
         app.devices[dname].stop( )
@@ -45,6 +51,7 @@ def cli(ctx,settings,workdir,**kwargs):
     ctx.ensure_object(dict)
     ctx.obj['modules'] = []
     if settings:
+        manager.watch(settings)
         with open(settings, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f) or {}
         ctx.obj['config'] = config
@@ -78,6 +85,9 @@ def cli(ctx,settings,workdir,**kwargs):
         elif 'multihead' in config:
             params = config['multihead']
             ctx.invoke(multihead,**params)
+        elif 'generic' in config:
+            params = config['generic']
+            ctx.invoke(generic,**params)
     else:
         args = { }
         for key,val in kwargs.items():
@@ -124,6 +134,7 @@ def start(ctx,conf,opentsdb,grafana,grafana_key,simulator):
         app.events.spawn( )
 
     if conf:
+        manager.watch(conf)
         click.echo(f'\tФайл конфигурации: {conf}')
         try:
             app.config( conf )
@@ -144,12 +155,14 @@ def start(ctx,conf,opentsdb,grafana,grafana_key,simulator):
 def navbar(ctx,pages,title,tools):
     import pysca.navbar as navbar
     for p in pages:
+        manager.watch(p)
         w = app.window(p)
         if not w:
             continue
         navbar.append(w)
         globals()[w.objectName()] = w
     for t in tools:
+        manager.watch(t)
         w = app.window(t)
         if not w:
             continue
@@ -168,6 +181,7 @@ def navbar(ctx,pages,title,tools):
 def multihead(ctx,pages,title,tools):
     import pysca.multihead as navbar
     for p in pages:
+        manager.watch(p)
         p = app.window(p)
         if not p:
             continue
@@ -175,6 +189,7 @@ def multihead(ctx,pages,title,tools):
         globals()[p.objectName()] = p
         
     for t in tools:
+        manager.watch(t)
         w = app.window(t)
         if not w: continue
         navbar.tools(w)
@@ -185,7 +200,21 @@ def multihead(ctx,pages,title,tools):
     globals()['_MAIN_'] = navbar.instance
     run()
 
-all = [device,module,navbar,multihead]
+@cli.command(help='Запуск пользовательских окон')
+@click.argument('pages',nargs=-1, type=click.Path(exists=True),required=False)
+@click.pass_context
+def generic(ctx,pages):
+    for p in pages:
+        manager.watch(p)
+        w = app.window(p)
+        if not w:
+            continue
+        globals()[w.objectName()] = w
+        w.show( )
+    globals()['_MAIN_'] = w
+    run()
+
+all = [device,module,navbar,multihead,generic]
 
 cli.add_command(device,'device')
 cli.add_command(module,'module')
