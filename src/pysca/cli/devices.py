@@ -33,8 +33,8 @@ def device(ctx,name,type,args):
         
         if d:
             app.devices[name] = d
-            click.echo(f'\tДобавлено устройство {name}')
+            click.echo(f'   Добавлено устройство {name}')
         else:
-            click.secho(f'\tНе удалось создать устройство {name}',err=True,fg='red')
+            click.secho(f'  Не удалось создать устройство {name}',err=True,fg='red')
     else:
-        click.echo(click.style(f'\tНе удалось создать устройство либо уже есть {name}',fg='red'),err=True)
+        click.echo(click.style(f'   Не удалось создать устройство либо уже есть {name}',fg='red'),err=True)
