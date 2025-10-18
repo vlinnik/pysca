@@ -2,7 +2,7 @@ import click
 import yaml
 
 import os
-from qtpy.QtWidgets import QMessageBox
+from qtpy.QtWidgets import QMessageBox,QWidget
 from pysca import app
 from sqlalchemy import exc
 
@@ -33,6 +33,46 @@ def run(ctx):
     if 'logic' in ctx.obj:
         logic = ctx.obj['logic']
         logic.terminate( )
+
+import xml.etree.ElementTree as ET
+from typing import List,Type
+
+def resolve_class(ui_path:str,mods:List[Type]):
+    if len(mods)>0:
+        tree = ET.parse(ui_path)
+        root = tree.getroot()
+        class_tag = root.find('class')
+        class_name = class_tag.text if class_tag is not None else None
+        cls = None
+        if class_name:
+            for m in mods:
+                if hasattr(m,class_name):
+                    cls = getattr(m,class_name)
+                    break
+        return cls
+    return None    
+def load_modules(modules):
+    mods = []
+    if len(modules)>0:
+        import importlib
+        for m in modules:
+            mods.append(importlib.import_module(m))
+    return mods
+def load_windows(pages,modules)->List[QWidget]:
+    wins = []
+            
+    for p in pages:
+        manager.watch(p)
+        cls = resolve_class(p,modules)
+        if cls is not None:
+            w = app.window(p,baseinstance=cls())
+        else:
+            w = app.window(p)
+        if not w:
+            continue
+        globals()[w.objectName()] = w
+        wins.append(w)
+    return wins
 
 @click.group(invoke_without_command=True)
 @click.option('-w', '--workdir', type=click.Path(exists=True, file_okay=False), default='.', help='Рабочая директория')
@@ -154,21 +194,16 @@ def start(ctx,conf,opentsdb,grafana,grafana_key,simulator):
 @click.argument('pages',nargs=-1, type=click.Path(exists=True),required=False)
 @click.option('--title', type=click.STRING,required=False)
 @click.option('--tools',multiple=True, type=click.Path(exists=True),required=False)
+@click.option('--modules',multiple=True, type=click.STRING,required=False)
 @click.pass_context
-def navbar(ctx,pages,title,tools):
+def navbar(ctx,pages,title,tools,modules):
     import pysca.navbar as navbar
-    for p in pages:
-        manager.watch(p)
-        w = app.window(p)
-        if not w:
-            continue
+    mods = load_modules(modules)
+    wins = load_windows(pages,mods)
+    for w in wins:
         navbar.append(w)
-        globals()[w.objectName()] = w
-    for t in tools:
-        manager.watch(t)
-        w = app.window(t)
-        if not w:
-            continue
+    wins = load_windows(tools,mods)
+    for w in wins:
         navbar.tools(w)
     if title:
         navbar.instance.setWindowTitle(f'{title}')
@@ -180,23 +215,17 @@ def navbar(ctx,pages,title,tools):
 @click.argument('pages',nargs=-1, type=click.Path(exists=True),required=False)
 @click.option('--title', type=click.STRING,required=False)
 @click.option('--tools',multiple=True, type=click.Path(exists=True),required=False)
+@click.option('--modules',multiple=True, type=click.STRING,required=False)
 @click.pass_context
-def multihead(ctx,pages,title,tools):
+def multihead(ctx,pages,title,tools,modules):
     import pysca.multihead as navbar
-    for p in pages:
-        manager.watch(p)
-        p = app.window(p)
-        if not p:
-            continue
-        navbar.append(p)
-        globals()[p.objectName()] = p
-        
-    for t in tools:
-        manager.watch(t)
-        w = app.window(t)
-        if not w: continue
-        navbar.tools(w)
-        
+    mods = load_modules(modules)
+    wins = load_windows(pages,mods)
+    for w in wins:
+        navbar.append(w)
+    wins = load_windows(tools,mods)
+    for w in wins:
+        navbar.tools(w)        
     if title:
         navbar.instance.setWindowTitle(f'{title}')
     navbar.instance.show()
@@ -205,14 +234,12 @@ def multihead(ctx,pages,title,tools):
 
 @cli.command(help='Запуск пользовательских окон')
 @click.argument('pages',nargs=-1, type=click.Path(exists=True),required=False)
+@click.option('--modules',multiple=True, type=click.STRING,required=False)
 @click.pass_context
-def generic(ctx,pages):
-    for p in pages:
-        manager.watch(p)
-        w = app.window(p)
-        if not w:
-            continue
-        globals()[w.objectName()] = w
+def generic(ctx,pages,modules):
+    mods = load_modules(modules)
+    wins = load_windows(pages,mods)
+    for w in wins:
         w.show( )
     globals()['_MAIN_'] = w
     run()
