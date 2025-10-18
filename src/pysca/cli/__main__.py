@@ -85,8 +85,10 @@ def load_windows(pages,modules)->List[QWidget]:
 @click.pass_context
 def cli(ctx,settings,workdir,**kwargs):
     if workdir:
+        import sys
         os.chdir(workdir)
         click.echo(f'   Рабочая директория установлена: {os.getcwd()}')
+        sys.path.insert(0, workdir)
 
     ctx.ensure_object(dict)
     ctx.obj['modules'] = []
