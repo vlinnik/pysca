@@ -7,7 +7,7 @@ import sys,os,glob,re,types
 import logging
 import argparse
 import json
-from typing import Any
+from typing import Any,Dict,cast
 try:
     from .__version__ import version
 except ImportError:
@@ -182,7 +182,7 @@ class App():
         self.MINUTE(now.minute)
         self.HOUR(now.hour)
 
-    def start(self,ctx: dict ):
+    def start(self,ctx: dict ,use_asyncio: bool = False):
         self._ = ctx
         
         for name,dev in self.devices.items():
@@ -194,7 +194,16 @@ class App():
         clock = QTimer()
         clock.timeout.connect( self.tick )
         clock.start(100)
-        qApp.exec( )
+        if not use_asyncio:
+            qApp.exec( )
+        else:
+            from qasync import QEventLoop
+            import asyncio
+            loop = QEventLoop(qApp)
+            asyncio.set_event_loop(loop)
+            with loop:
+                loop.run_forever( )
+                        
         clock.stop( )
         
     def config(self,db:str): 
@@ -217,27 +226,29 @@ class App():
             p = None
             
             if var.type==Property.TYPE_FLOAT:
-                p = self.var(float,var.name)
+                p = Property[float]( ) #self.var(float,var.name)
             elif var.type==Property.TYPE_BOOL:
-                p = self.var(bool,var.name)
+                p = Property[bool]( ) #self.var(bool,var.name)
             elif var.type==Property.TYPE_STR:
-                p = self.var(str,var.name)
+                p = Property[str]( ) #self.var(str,var.name)
             elif var.type==Property.TYPE_INT:
-                p = self.var(int,var.name)
+                p = Property[int]( ) #self.var(int,var.name)
             elif var.type==Property.TYPE_LONG:
-                p = self.var(int,var.name)
+                p = Property[int]( ) #self.var(int,var.name)
             else:
                 raise ValueError('Variable %s type %d not supported' % (str(var.name),int(var.type)))
             
+            self.ctx[var.name] = p
             p.name = var.name
             p.source = var.source
             p.address = var.address
             p.type = var.type
             p.comment = var.comment
+
             try:
-                p.properties = json.loads( var.properties )
+                p.properties = cast(dict[str,Any],json.loads( str(var.properties) ) )
             except:
-                p.properties = { }
+                p.properties = dict[str,Any]( )
 
             if var.type==Property.TYPE_FLOAT:
                 p.filter = LinearScale

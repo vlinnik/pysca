@@ -19,12 +19,11 @@ def run(ctx):
         if hasattr(m,'initialize') and callable(getattr(m,'initialize')):
             m.initialize( ctx=globals() )
         
-        
     for dname in app.devices:
         app.devices[dname].start( )
 
     manager.start( )
-    app.start(ctx=globals())
+    app.start(ctx=globals(),use_asyncio=ctx.obj['asyncio'] if 'asyncio' in ctx.obj else False)
     manager.stop( )
     
     for dname in app.devices:
@@ -82,8 +81,9 @@ def load_windows(pages,modules)->List[QWidget]:
 @click.option('--grafana', nargs=1,metavar='<ip>[:port]',  help='IP-адрес и порт Grafana')
 @click.option('--grafana-key',nargs=1, metavar='<grafana api admin/editor token>',help='API-Token для записи событий в grafana')
 @click.option('--simulator',is_flag=True,help='Запустить имитацию логики')
+@click.option('--with-asyncio',is_flag=True,help='Использовать qasync QEventLoop для поддержки asyncio')
 @click.pass_context
-def cli(ctx,settings,workdir,**kwargs):
+def cli(ctx,settings,workdir, **kwargs):
     if workdir:
         import sys
         os.chdir(workdir)
@@ -146,8 +146,10 @@ def cli(ctx,settings,workdir,**kwargs):
 @click.option('--grafana', nargs=1,metavar='<ip>[:port]',  help='IP-адрес и порт Grafana')
 @click.option('--grafana-key',nargs=1, metavar='<grafana api admin/editor token>',help='API-Token для записи событий в grafana')
 @click.option('--simulator',is_flag=True,help='Запустить имитацию логики')
+@click.option('--with-asyncio',is_flag=True,help='Использовать qasync QEventLoop для поддержки asyncio')
 @click.pass_context
-def start(ctx,conf,opentsdb,grafana,grafana_key,simulator):
+def start(ctx,conf,opentsdb,grafana,grafana_key,simulator,with_asyncio):
+    ctx.obj['asyncio'] = with_asyncio
     if opentsdb:
         parts = opentsdb.split(':')
         ip = parts[0]

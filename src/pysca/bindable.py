@@ -1,4 +1,4 @@
-from typing import Any,Type
+from typing import Any,Type,Protocol
 from .__logging import console
 
 _log = console('bindable')
@@ -34,7 +34,16 @@ class Filter():
         elif self._next:
             self._next.config(attr,value)
 
-class Property():
+from typing import TypeVar, Generic, Callable, Union
+T = TypeVar('T', str, bool, float, int)
+T_iec= TypeVar('T_iec', str, bool, float, int)
+
+class _UnsetType:
+    pass
+
+UNSET = _UnsetType()
+            
+class Property(Generic[T,T_iec]):
     """ Переменная I/O или обычная. Хранит 2 значения: физическое (iec) и логическое (value).
     
     changed - настроить callback, для записи в контроллер (iec значение). Для драйверов
@@ -52,7 +61,7 @@ class Property():
     
     Значение может быть результатом функции. Контролируются изменения с помощью Property.write.
     """
-    def __init__(self,init_val=None,read:callable=None, write: callable=None,iec_val=None):
+    def __init__(self,init_val:Union[T,_UnsetType]=UNSET,read:Union[Callable[[],T],None]=None, write: Callable[[T],None]|None=None,iec_val: Union[T_iec,_UnsetType]=UNSET):
         """Новое контролируемое значение(свойство).
 
         Args:
@@ -61,19 +70,13 @@ class Property():
             write (callable, optional): Для изменения свойства используется функция write(<новое значение>). Defaults to None.
             iec_val (type|Any,optional): Тип переменной в физическом представлении. Например аналоговые сигналы обычно 16 бит-слово.
         """
-        self._filter:Filter = None  #обработка значения (если необходима)
+        self._filter:Filter|None = None  #обработка значения (если необходима)
         self.__binds = []
-        if isinstance(init_val,type):
-            self._value = init_val( )
-        else:
-            self._value = init_val
-        if isinstance(iec_val,type):
-            self._iec = iec_val( )
-        else:
-            self._iec = iec_val
+        self._value: Union[T,_UnsetType] = init_val
+        self._iec: Union[T_iec,_UnsetType] = iec_val
         self._read = read
         self._write = write
-        self._iec_write:callable|None = None
+        self._iec_write:Callable[[T_iec],None]|None = None
         self.name: str|None = None
         self.source:str|None = None
         self.address:str|None = None
@@ -91,7 +94,7 @@ class Property():
         except AttributeError as e:
             pass
 
-    def bind(self,__sink:callable,no_init:bool=False):  
+    def bind(self,__sink:Callable[[T|None],None],no_init:bool=False):  
         """Установить callback при изменении контролируемого значения. 
 
         Args:
@@ -102,7 +105,7 @@ class Property():
         if not no_init:
             __sink(self.read())
 
-    def unbind(self,__sink: callable = None):
+    def unbind(self,__sink: Callable[[T],None]|None = None):
         """Удалить конкретный callback или все.
 
         Args:
@@ -110,7 +113,7 @@ class Property():
         """
         self.__binds = list(filter( lambda x: not (x==__sink or __sink is None),self.__binds ) )
 
-    def read(self)->Any:
+    def read(self)->Union[T,None]:
         """Прочитать текущее значение.
 
         Returns:
@@ -118,7 +121,7 @@ class Property():
         """
         if self._read:
             self._value = self._read( )
-        return self._value
+        return None if isinstance(self._value, _UnsetType) else self._value
 
     def write(self,value: Any,remote:bool=False):
         """Изменить текущее значение.
@@ -133,7 +136,7 @@ class Property():
         if self._value!=value:
             if type(self._value)!=type(value) and self._value is not None and value is not None:
                 try:
-                    self._value = type(self._value)(value)
+                    self._value = self._iec_type(value)
                 except:
                     raise RuntimeWarning(f'cannot convert new value "{value}" to {type(self._value).__name__}')
             else:
