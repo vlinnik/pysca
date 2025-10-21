@@ -1,13 +1,13 @@
 import os
-from qtpy.QtWidgets import QApplication,QWidget,qApp
-from qtpy.QtCore import QObject,QResource,QVariant,QTimer,Qt
+from qtpy.QtWidgets import QApplication,QWidget
+from qtpy.QtCore import QObject,QResource,QTimer,Qt
 from datetime import datetime
 import time
 import sys,os,glob,re,types
 import logging
 import argparse
 import json
-from typing import Any,Dict,cast
+from typing import Any,Dict,cast,TypeVar,Type,Optional
 try:
     from .__version__ import version
 except ImportError:
@@ -106,43 +106,37 @@ class _Signals(_Base):
 
 log = console('pysca')
 log.info(f'Initializing PySCA {version}, SqlAlchemy {sqlalchemy_version}')
-
-if not QApplication.instance():
-    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
-    qApp = QApplication(sys.argv)
-else:
-    qApp = QApplication.instance()
+    
+from typing import TypeVar, Type, Generic, Callable, Union,List
+T = TypeVar('T', str, bool, float, int)
 
 class App():
     def __init__(self):
         self.animations = []
         self.slots = []
         self.devices = { }          #устройства IO
-        self.ctx = Expressions( )   #выражения и переменные
+        self.ctx = Expressions( )   #выражения и переменные, как локальный контекст используется
         self.session = None         #работа с базой 
-        self._ = { }
+        self._ = { }                #глобальный контекст приложения (передается через start(ctx=globals()))
         self.queued = []            #запланировано к анимированию. tuples параметров animate + objectID
         now = datetime.now()
-        self.SECOND = self.var(int(now.second),'SECOND')
-        self.MINUTE = self.var(int(now.minute),'MINUTE')
-        self.HOUR = self.var(int(now.hour),'HOUR')
-        self.MSEC = self.var(int(now.microsecond/1_000),'MSEC')
-        self.NOW = self.var(time.time(),'NOW')
-        self.journal:MetricJournal | None = None
-        self.events:MetricDairy | None = None
-        self.alerts:AlertsJournal | None = None
+        self.SECOND = self.var( Property(int,init_val=now.second),'SECOND')
+        self.MINUTE = self.var( Property(int,init_val=now.minute),'MINUTE')
+        self.HOUR = self.var( Property(int,init_val=now.hour),'HOUR')
+        self.MSEC = self.var( Property(int,init_val=now.microsecond/1_000),'MSEC')
+        self.NOW = self.var( Property(int, init_val=time.time()),'NOW')
+        self.journal:Optional[MetricJournal] = None
+        self.events:Optional[MetricDairy] = None
+        self.alerts:Optional[AlertsJournal] = None
         self._configured = False
         
     def _ensure_configured(self):
         if not self._configured:
             self.config('default.scada')
     
-    def __findChild(self,o: QObject, path: list[str] ):
+    def __findChild(self,o: QObject|None , path: list[str] ):
         if o is None:
             return None
-        
-        # if o.objectName()!=path[0]:
-        #     return None
         
         if len(path)>1:
             child = o.findChild(QObject, path[1] )
@@ -150,26 +144,17 @@ class App():
         return o
         
 
-    def var(self,init_val: Any | type =None,name: str=None)->Property:
-        if isinstance(init_val, Property ):
-            self.ctx[name] = init_val
-            return init_val
-        else:
-            ret = Property(init_val)
-            if name is not None:
-                self.ctx[name] = ret
-            return ret
-        
-    def expr(self,code:str )->Expressions.Expression:
-        return self.ctx.create(code)
-    
-    def exec(self,code: str, ctx:dict=None ):
+    def var(self,v: Property, name: str)->Property:
+        self.ctx[name] = v
+        return v
+            
+    def exec(self,code: str, ctx:dict[str,Any]={} ):
         try:
-            exec( code, ctx if ctx else self._ , self.ctx )
+            exec( code, self._ , dict(self.ctx,**ctx) )
         except Exception as e:
             log.error('error in exec-code: %s (%s)',code,e)
     
-    def eval(self,code: str, ctx:dict=None )->Any:
+    def eval(self,code: str, ctx:dict|None=None )->Any:
         return eval( code, self.ctx,  ctx if ctx else self._  )
 
     def context(self)->dict:
@@ -194,6 +179,7 @@ class App():
         clock = QTimer()
         clock.timeout.connect( self.tick )
         clock.start(100)
+        qApp = QApplication.instance()
         if not use_asyncio:
             qApp.exec( )
         else:
@@ -226,19 +212,19 @@ class App():
             p = None
             
             if var.type==Property.TYPE_FLOAT:
-                p = Property[float]( ) #self.var(float,var.name)
+                p = Property( float ) 
             elif var.type==Property.TYPE_BOOL:
-                p = Property[bool]( ) #self.var(bool,var.name)
+                p = Property( bool ) 
             elif var.type==Property.TYPE_STR:
-                p = Property[str]( ) #self.var(str,var.name)
+                p = Property( str ) 
             elif var.type==Property.TYPE_INT:
-                p = Property[int]( ) #self.var(int,var.name)
+                p = Property( int ) 
             elif var.type==Property.TYPE_LONG:
-                p = Property[int]( ) #self.var(int,var.name)
+                p = Property( int ) 
             else:
                 raise ValueError('Variable %s type %d not supported' % (str(var.name),int(var.type)))
             
-            self.ctx[var.name] = p
+            self.var(p,var.name)
             p.name = var.name
             p.source = var.source
             p.address = var.address
@@ -246,8 +232,8 @@ class App():
             p.comment = var.comment
 
             try:
-                p.properties = cast(dict[str,Any],json.loads( str(var.properties) ) )
-            except:
+                p.properties = cast(dict[str,Any],json.loads( cast(bytes,var.properties).decode() ) )
+            except Exception as e:
                 p.properties = dict[str,Any]( )
 
             if var.type==Property.TYPE_FLOAT:
@@ -261,6 +247,12 @@ class App():
                 
             if var.alarms==True and self.alerts:
                 p.filter = self.alerts.factory( )
+            
+            rx = re.compile('^monitor.*')
+            if any(rx.search(key) for key in p.properties):
+                from .monitor import Monitor
+                p.monitor = Monitor( self.exec, comment=var.comment,subject=p,**p.properties )
+                pass
 
             p.config(p.properties)
         
@@ -274,14 +266,24 @@ class App():
             QResource.registerResource(f'{rcc_dir}/{rcc}')
         self._configured = True
 
-    def ctxOf(self,target, ctx: dict =None):
+    def ctxOf(self,target, ctx: dict|None =None):
         for key in target.dynamicPropertyNames():
             yield bytearray(key).decode(),target.property(key)
         if ctx is not None:
             for key in ctx:
                 yield key,ctx[key]
         
-    def bindings( self, target: QObject,ctx: dict = None, **kwargs):
+    def bindings( self, target: QObject,ctx: dict|None = None, **kwargs):
+        """Привязать свойства target к выражениям (python)
+        
+        Использование: 
+        target = QPushButton()
+        app.bindings(target, down = 'not AUGER_ON_1', enabled = 'MOTOR_ISON_1')
+
+        Args:
+            target (QObject): Объект чьи свойства будут автоматически вычисляться
+            ctx (dict | None, optional): Контекст, в котором происходит вычисление выражения. Defaults to None.
+        """
         from .qtac import QObjectPropertyBinding,QObjectDynamicPropertyHelper
         from .flexeffect import FlexEffect
         
@@ -289,9 +291,10 @@ class App():
 
         for prop in kwargs:
             if target.isWidgetType() and not target.property(b'_effect'):
-                target.setProperty(b'_effect',QVariant(FlexEffect(target)))
+                target.setProperty(b'_effect',(FlexEffect(cast(QWidget,target) )))
                             
             code = kwargs[prop]
+            current = target.property(prop)
             
             rd_only = False
             wr_only = False
@@ -299,14 +302,16 @@ class App():
             if isinstance(code,Property):
                 expression = code
             elif isinstance(code,str):
-                expression = self.ctx.create(code,locals=ctx)
-            elif callable(code):
+                expression = self.ctx.create(type(current),code,locals=ctx)
+            elif callable(code) and code is not None:
                 try:
                     init_val = code( )
                 except TypeError as e:
                     init_val = None
                     wr_only = True
-                expression = Property(init_val, read=None if wr_only else code, write=code if not rd_only else None)
+                _rd = cast(Callable[[],Any],code)
+                _wr = cast(Callable[[Any],None],code)
+                expression = Property(type(current),init_val, read=None if wr_only else _rd, write=_wr if not rd_only else None)
             else:
                 log.warning('неизвестный тип анимации %s для свойства %s' % (type(code),prop))
                 continue
@@ -328,7 +333,7 @@ class App():
                         helper = QObjectDynamicPropertyHelper(target)   #TODO: надо где-то сохранить созданный объект
                     helper.mapping( prop, code )
             
-    def animate(self,obj, ctx: dict = None,objectID:str = None):
+    def animate(self,obj, ctx: dict | None = None,objectID:str = None):
         """Настроить анимации свойств из базы
 
         Args:
@@ -362,8 +367,8 @@ class App():
                 log.error('анимируемый объект(%s) не найден' % (animation.objectID))
                 continue
             
-            if target.isWidgetType() and not target.property(b'_effect'):
-                target.setProperty(b'_effect',QVariant(FlexEffect(target)))
+            if target.isWidgetType() and not target.property('_effect'):
+                target.setProperty('_effect',FlexEffect(target))
                             
             code = animation.data
             try:
@@ -389,7 +394,8 @@ class App():
                             helpers[animation.objectID] = QObjectDynamicPropertyHelper(target)
                         helpers[animation.objectID].mapping( animation.prop,self.ctx[code] )
                 else:
-                    expression = self.ctx.create(code,locals=ctx)
+                    current = target.property(animation.prop)
+                    expression = self.ctx.create(type(current),code,locals=ctx)
                     if not animation.prop.startswith('__effect_'):
                         ani = QObjectPropertyBinding.create( target, animation.prop, expression ,readOnly=True)
                     else:
@@ -403,7 +409,7 @@ class App():
             except Exception as e:
                 log.error('ошибка при настройки анимации: объект(%s), свойство(%s), выражение(%s): %s' % (animation.objectID,animation.prop,animation.data,e) )
             
-    def signals(self, obj, objectID: str = None,ctx:dict = None):
+    def signals(self, obj, objectID: str = '',ctx:dict|None = None):
         from .qtac import QObjectSignalHandler
 
         if not obj:
@@ -432,7 +438,7 @@ class App():
                         pass                    
                     if re.match("@(\\w+(\\.\\w+)*)",code):
                         code = re.sub("@(\\w+(\\.\\w+)*)","\\1.value",code)
-                    self.slots.append(QObjectSignalHandler(target,signal.signal,code,self.context,self.ctx,this = obj))
+                    self.slots.append(QObjectSignalHandler(target,signal.signal,code,self.context,self.ctx,this = obj,user_ctx=ctx))
                 else:
                     log.error('для события нет объекта: объект(%s), событие(%s), выражение(%s)' % (signal.objectID,signal.signal,signal.data) )
                     # log.warning(f'no {signal.objectID} in {obj.objectName()}')
@@ -441,7 +447,7 @@ class App():
                 log.error('ошибка при настройке события: объект(%s), событие(%s), выражение(%s): %s' % (signal.objectID,signal.signal,signal.data,e) )
                 # log.error('error in signal initialization %s(%s)' % (objectID,e) )
                 
-    def window(self,t:type | str | QWidget,*, objectID:str = None,ctx: dict = None, baseinstance: Any | None=None, later:bool=False, parent:QWidget | None = None, **kwargs)->'QWidget':
+    def window(self,t:type | str | QWidget,*, objectID:str = '',ctx: dict | None = None, baseinstance: Any | None=None, later:bool=False, parent:QWidget | None = None, **kwargs)->'QWidget|None':
         try:
             from qtpy import uic
             self._ensure_configured()
@@ -455,7 +461,7 @@ class App():
                 w = uic.loadUi( t ,baseinstance=baseinstance)
                 if w is None:
                     log.error('failed to load UI-file') 
-                    return 
+                    return None
             elif isinstance(t,QWidget):
                 w = t    
 
@@ -465,7 +471,7 @@ class App():
             try:
                 if not later:
                     self.animate(w,objectID=objectID,ctx=ctx)
-                    self.signals(w,objectID=objectID)
+                    self.signals(w,objectID=objectID,ctx=ctx)
                     self.flush( )
                 else:
                     self.queued.append( (w,objectID,ctx) )
@@ -481,7 +487,7 @@ class App():
         except Exception as e:
             log.error('error creating window: %s (%s)',t,e)
             
-    def object(self,obj:'QObject',objectID:str = None,ctx:dict = None):
+    def object(self,obj:'QObject',objectID:str = '',ctx:dict|None = None):
         if ctx is None:
             ctx = { }
         try:
@@ -507,9 +513,3 @@ class App():
             except Exception as e:
                 log.warning(f'внимание: проблема в отложенном анимировании объекта object({objectID})')
         self.queued.clear()                        
-
-# if not QApplication.instance():
-#     QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
-#     qApp = QApplication(sys.argv)
-# else:
-#     qApp = QApplication.instance()

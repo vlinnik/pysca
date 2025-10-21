@@ -1,5 +1,6 @@
 from typing import Any,Type,Protocol
 from .__logging import console
+from .monitor import Monitor
 
 _log = console('bindable')
 
@@ -34,16 +35,10 @@ class Filter():
         elif self._next:
             self._next.config(attr,value)
 
-from typing import TypeVar, Generic, Callable, Union
+from typing import TypeVar, Generic, Callable, Union,List
 T = TypeVar('T', str, bool, float, int)
-T_iec= TypeVar('T_iec', str, bool, float, int)
-
-class _UnsetType:
-    pass
-
-UNSET = _UnsetType()
             
-class Property(Generic[T,T_iec]):
+class Property(Generic[T]):
     """ Переменная I/O или обычная. Хранит 2 значения: физическое (iec) и логическое (value).
     
     changed - настроить callback, для записи в контроллер (iec значение). Для драйверов
@@ -61,7 +56,7 @@ class Property(Generic[T,T_iec]):
     
     Значение может быть результатом функции. Контролируются изменения с помощью Property.write.
     """
-    def __init__(self,init_val:Union[T,_UnsetType]=UNSET,read:Union[Callable[[],T],None]=None, write: Callable[[T],None]|None=None,iec_val: Union[T_iec,_UnsetType]=UNSET):
+    def __init__(self,t: Type[T],*_,init_val:Union[T,None]=None,read:Union[Callable[[],T | None],None]=None, write: Callable[[T|None],None]|None=None):
         """Новое контролируемое значение(свойство).
 
         Args:
@@ -72,11 +67,13 @@ class Property(Generic[T,T_iec]):
         """
         self._filter:Filter|None = None  #обработка значения (если необходима)
         self.__binds = []
-        self._value: Union[T,_UnsetType] = init_val
-        self._iec: Union[T_iec,_UnsetType] = iec_val
+        self._eu_type = t   #< тип переменной в представлении с нашей стороны (для преобразований при записи)
+        self._value: Union[T,None] = init_val
+        self._iec: Any = None
         self._read = read
         self._write = write
-        self._iec_write:Callable[[T_iec],None]|None = None
+        self._iec_write:Callable[[Any],None]|None = None
+        self._monitors: List[Monitor] = [ ]
         self.name: str|None = None
         self.source:str|None = None
         self.address:str|None = None
@@ -93,6 +90,20 @@ class Property(Generic[T,T_iec]):
                     self.filter.config(a,attr[a])
         except AttributeError as e:
             pass
+        
+    @property
+    def monitor(self)->None:
+        raise RuntimeWarning('.monitor is write-only property')
+    
+    @monitor.setter
+    def monitor(self,obj: Monitor ):
+        """Установить мониторинг значений. Мониторинг при любом изменении переменной производит обработку нового значения. 
+        Также при обработке есть возможность узнать причину изменения (пользователь или система)
+
+        Args:
+            obj (Monitor): Объект, который будет вызван с новым значением и причиной изменения
+        """
+        self._monitors.append(obj)
 
     def bind(self,__sink:Callable[[T|None],None],no_init:bool=False):  
         """Установить callback при изменении контролируемого значения. 
@@ -121,7 +132,7 @@ class Property(Generic[T,T_iec]):
         """
         if self._read:
             self._value = self._read( )
-        return None if isinstance(self._value, _UnsetType) else self._value
+        return self._value
 
     def write(self,value: Any,remote:bool=False):
         """Изменить текущее значение.
@@ -134,20 +145,25 @@ class Property(Generic[T,T_iec]):
             RuntimeWarning: Если value нельзя преобразовать к текущему типу Property.read()
         """
         if self._value!=value:
-            if type(self._value)!=type(value) and self._value is not None and value is not None:
+            if self._eu_type!=type(value) and value is not None:
                 try:
-                    self._value = self._iec_type(value)
+                    self._value = self._eu_type(value)
                 except:
-                    raise RuntimeWarning(f'cannot convert new value "{value}" to {type(self._value).__name__}')
+                    raise RuntimeWarning(f'cannot convert new value "{value}" to {self._eu_type.__name__}')
             else:
                 self._value = value
             if self._write:
-                self._write(self._value)
+                self._write( self._value)
             for b in self.__binds:
                 try:
                     b(self._value)
                 except Exception as e:
                     if self._value is not None: _log.warning(f'проблема при изменении значения {self.name}: {e}')
+            for m in self._monitors:
+                try:
+                    m(self._value,user=not remote)
+                except Exception as e:
+                    _log.warning(f'Проблема мониторинга значения: {e}, монитор {m}')
                 
         if self._iec_write and not remote:
             self._iec_write(self.raw)
@@ -170,7 +186,7 @@ class Property(Generic[T,T_iec]):
         
         return self._value
     
-    def changed(self,callback: callable):
+    def changed(self,callback: Callable[[Any],None]):
         self._iec_write = callback
 
     def remote(self,iec_val: Any):
@@ -191,7 +207,7 @@ class Property(Generic[T,T_iec]):
         else:
             self.write( self._iec,remote = True )
     @property
-    def filter(self)->Filter:
+    def filter(self)->Filter|None:
         return self._filter
     @filter.setter
     def filter(self,cls: Type[Filter]):
@@ -202,13 +218,13 @@ class Property(Generic[T,T_iec]):
 
 class Expressions(dict):
     class Expression(Property,dict):
-        def __init__(self, ctx, source: str, locals = None) -> None:
-            super().__init__( )
+        def __init__(self,t:Type[T], ctx, source: str, locals = None) -> None:
+            super().__init__( t )
             self.value = None
             self.ctx = ctx
-            self.source = source
+            self.source:str = source
             self.locals = locals
-            self.crossreferences = []
+            self.crossreferences:List[str] = []
 
         def isDependsOn(self,key:str):
             return key in self.crossreferences
@@ -262,7 +278,7 @@ class Expressions(dict):
         
         return super().__getattribute__(name)
         
-    def create(self,source: str,locals: dict = None):
-        ret = self.Expression( self, source, locals = locals )
+    def create(self,t: Type[T], source: str,locals: dict|None = None):
+        ret = self.Expression( t, self, source, locals = locals )
         ret.evaluate(  )
         return ret

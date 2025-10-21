@@ -2,14 +2,21 @@ import click
 import yaml
 
 import os
-from qtpy.QtWidgets import QMessageBox,QWidget
+from qtpy.QtWidgets import QMessageBox,QWidget,QApplication
 from pysca import app
 from sqlalchemy import exc
 
 from pysca.cli.devices import device
 from pysca.cli.modules import module
-from qtpy.QtWidgets import qApp
 from pysca.cli.restartmanager import FileWatcherTray
+
+if not QApplication.instance():
+    from qtpy.QtCore import Qt
+    import sys
+    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+    qApp = QApplication(sys.argv)
+else:
+    qApp = QApplication.instance()
 
 manager = FileWatcherTray(qApp.quit)
 
@@ -50,23 +57,26 @@ def resolve_class(ui_path:str,mods:List[Type]):
                     break
         return cls
     return None    
-def load_modules(modules):
+
+def load_modules(ctx,modules):
     mods = []
     if len(modules)>0:
         import importlib
         for m in modules:
-            mods.append(importlib.import_module(m))
+            mod = importlib.import_module(m)
+            mods.append(mod)
     return mods
-def load_windows(pages,modules)->List[QWidget]:
+
+def load_windows(ctx,pages,modules)->List[QWidget]:
     wins = []
             
     for p in pages:
         manager.watch(p)
         cls = resolve_class(p,modules)
         if cls is not None:
-            w = app.window(p,baseinstance=cls())
+            w = app.window(p,baseinstance=cls(),ctx=ctx.obj['globals'])
         else:
-            w = app.window(p)
+            w = app.window(p,ctx=ctx.obj['globals'])
         if not w:
             continue
         globals()[w.objectName()] = w
@@ -91,7 +101,8 @@ def cli(ctx,settings,workdir, **kwargs):
         sys.path.insert(0, workdir)
 
     ctx.ensure_object(dict)
-    ctx.obj['modules'] = []
+    ctx.obj['modules'] = []     #загружаемые модули с createInstance 
+    ctx.obj['globals'] = { }    #что доступно в сценариях
     if settings:
         manager.watch(settings)
         with open(settings, 'r', encoding='utf-8') as f:
@@ -202,11 +213,11 @@ def start(ctx,conf,opentsdb,grafana,grafana_key,simulator,with_asyncio):
 @click.pass_context
 def navbar(ctx,pages,title,tools,modules):
     import pysca.navbar as navbar
-    mods = load_modules(modules)
-    wins = load_windows(pages,mods)
+    mods = load_modules(ctx,modules)
+    wins = load_windows(ctx,pages,mods)
     for w in wins:
         navbar.append(w)
-    wins = load_windows(tools,mods)
+    wins = load_windows(ctx,tools,mods)
     for w in wins:
         navbar.tools(w)
     if title:
@@ -223,11 +234,11 @@ def navbar(ctx,pages,title,tools,modules):
 @click.pass_context
 def multihead(ctx,pages,title,tools,modules):
     import pysca.multihead as navbar
-    mods = load_modules(modules)
-    wins = load_windows(pages,mods)
+    mods = load_modules(ctx,modules)
+    wins = load_windows(ctx,pages,mods)
     for w in wins:
         navbar.append(w)
-    wins = load_windows(tools,mods)
+    wins = load_windows(ctx,tools,mods)
     for w in wins:
         navbar.tools(w)        
     if title:
@@ -241,8 +252,8 @@ def multihead(ctx,pages,title,tools,modules):
 @click.option('--modules',multiple=True, type=click.STRING,required=False)
 @click.pass_context
 def generic(ctx,pages,modules):
-    mods = load_modules(modules)
-    wins = load_windows(pages,mods)
+    mods = load_modules(ctx,modules)
+    wins = load_windows(ctx,pages,mods)
     for w in wins:
         w.show( )
     globals()['_MAIN_'] = w

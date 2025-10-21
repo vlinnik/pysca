@@ -9,6 +9,8 @@ if qtpy.API == "pyqt6":
     from PyQt6.QtCore import pyqtEnum
 if qtpy.API == "pyqt5":
     from PyQt5.QtCore import Q_ENUM as pyqtEnum
+if qtpy.API == "pyside2" or qtpy.API=="pyside6":
+    from PySide2.QtCore import QEnum as pyqtEnum
 
 class _AffineEffect(QGraphicsEffect):
     def __init__(self, angle:float=None, parent = ...):
@@ -84,7 +86,7 @@ class FlexEffect(QObject):
     pyqtEnum(EffectType)
     
     def __init__(self,target:QWidget = None):
-        super(QObject,self).__init__( parent = target )
+        super().__init__( parent= target )
         self.target = target
         self._effect = EffectType.Nothing
         self._power:float = 1

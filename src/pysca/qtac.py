@@ -1,7 +1,7 @@
-from qtpy.QtCore import QObject,QMetaObject,QEvent,QDynamicPropertyChangeEvent
-from qtpy.QtWidgets import QGraphicsBlurEffect
+from qtpy.QtCore import QObject,QMetaObject,QEvent,QDynamicPropertyChangeEvent,QMetaProperty
+from qtpy.QtWidgets import QGraphicsBlurEffect,QAbstractButton,QLineEdit
+from typing import Callable,cast,Optional,Dict,Any
 from .flexeffect import FlexEffect
-from typing import Callable,cast
 from .bindable import Property
 
 class QObjectDynamicPropertyHelper(QObject):
@@ -43,14 +43,16 @@ class QObjectPropertyBinding():
             clean (callable, optional): Обратная display. Defaults to None.
         """
         self.connections = []
-        self.prop = prop
+        self.prop:str = prop
         mo = obj.metaObject()
         mp = mo.property( mo.indexOfProperty(prop) )
         if input and obj.inherits('QAbstractButton') and prop=='down':
-            self.connections.append(obj.pressed.connect( lambda: input(True) ))
-            self.connections.append(obj.released.connect( lambda: input(False) ))
+            btn = cast(QAbstractButton,obj)
+            self.connections.append(btn.pressed.connect( lambda: input(True) ))
+            self.connections.append(btn.released.connect( lambda: input(False) ))
         elif input and obj.inherits('QLineEdit') and prop=='text':
-            self.connections.append( obj.editingFinished.connect( lambda: input(obj.text()) ) )
+            edt = cast(QLineEdit,obj)
+            self.connections.append( edt.editingFinished.connect( lambda: input(edt.text()) ) )
         elif input and mp.hasNotifySignal():
             self.connections.append( getattr(obj,mp.notifySignal().name().data().decode()).connect( input ) )
 
@@ -58,8 +60,8 @@ class QObjectPropertyBinding():
         if input and not mp.isValid() and prop in obj.dynamicPropertyNames():
             self.dynamic = True
 
-        self.mp = mp
-        self.obj = obj
+        self.mp:QMetaProperty = mp
+        self.obj:QObject = obj
         self._isWidget = obj.inherits('QWidget') 
 
         if display:
@@ -101,9 +103,9 @@ class QObjectPropertyBinding():
         if self.clean:
             self.clean(self.update)
             
-        self.obj = None
-        self.mp = None
-        self.prop = None
+        del self.obj
+        del self.mp
+        del self.prop 
 
     def __del__(self):
         pass
@@ -136,7 +138,7 @@ class QObjectSignalHandler():
     
     Код может содержать ссылки на параметры signal, arg1 например первый параметр.
     """
-    def __init__(self,obj: QObject, signal: str, code: str , globals: Callable[[],dict], ctx = None,this = None,**kwargs) -> None:
+    def __init__(self,obj: QObject, signal: str, code: str , globals: Callable[[],dict], ctx = None,this = None,user_ctx:Dict[str,Any] = { },**kwargs) -> None:
         mo = obj.metaObject()
         ms = mo.method( mo.indexOfSignal(QMetaObject.normalizedSignature(signal) ) )
         self.code = code
@@ -144,6 +146,7 @@ class QObjectSignalHandler():
         self.ctx = ctx           #все переменнные (ввода-вывода)
         self.globals = globals   #глобальный символы приложения (там где app можно взять)
         self.this = this         #самый первый объект (чтобы кнопка могла получить быстрый доступ к topMost окну)
+        self.user_ctx = user_ctx
         
         self.args = [ x[0].data().decode() if x[0].size()>0 else f'arg{x[1]+1}' for x in zip(list(ms.parameterNames( )),range(ms.parameterCount()))]
         self.connection = getattr(obj,ms.name().data().decode()).connect( self )
@@ -165,5 +168,6 @@ class QObjectSignalHandler():
             args[arg[0]] = arg[1]
         args['self'] = self.obj
         args['this'] = self.this
+        args.update( self.user_ctx )
         
         exec( self.code, dict(self.ctx, **self.globals()) , args )

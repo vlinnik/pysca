@@ -3,4 +3,6 @@ sqlalchemy
 opentsdb_client
 grafana_client
 click
-pyaml
+pyyaml
+watchdog
+pystray
