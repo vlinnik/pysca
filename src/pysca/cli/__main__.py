@@ -23,15 +23,10 @@ def cli(ctx,settings,workdir,qt_api, **kwargs):
     if qt_api:
         os.environ['QT_API']=qt_api
         
-    from pysca.cli.common import setup
-    setup(cli)
-    from pysca.cli.common import manager,start,navbar,generic,multihead,device,module
-    
     ctx.ensure_object(dict)
     ctx.obj['modules'] = []     #загружаемые модули с createInstance 
     ctx.obj['globals'] = { }    #что доступно в сценариях
     if settings:
-        manager.watch(settings)
         with open(settings, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f) or {}
         ctx.obj['config'] = config
@@ -44,8 +39,18 @@ def cli(ctx,settings,workdir,qt_api, **kwargs):
                     click.echo(f'   Рабочая директория установлена: {os.getcwd()}')
                 else:
                     params.pop('workdir')
-            ctx.invoke(start,**params)
+            if 'qt_api' in params:
+                os.environ['QT_API'] = params.pop('qt_api')
             
+    from pysca.cli.common import setup
+    setup(cli)
+    from pysca.cli.common import manager,start,navbar,generic,multihead,device,module
+
+    if settings:
+        if 'main' in config:
+            params:dict = config['main']
+            ctx.invoke(start,**params)
+                        
         if 'devices' in config:
             devices = config['devices']
             for dev in devices:
@@ -71,6 +76,7 @@ def cli(ctx,settings,workdir,qt_api, **kwargs):
         elif 'generic' in config:
             params = config['generic']
             ctx.invoke(generic,**params)
+        if manager: manager.watch(settings)
     else:
         args = { }
         for key,val in kwargs.items():
