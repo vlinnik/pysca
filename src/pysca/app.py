@@ -1,35 +1,24 @@
 import os
-from qtpy.QtWidgets import QApplication,QWidget
-from qtpy.QtCore import QObject,QResource,QTimer,Qt
 from datetime import datetime
 import time
 import sys,os,glob,re,types
-import logging
-import argparse
 import json
-from typing import Any,Dict,cast,TypeVar,Type,Optional
+from typing import Any,TypeVar,Optional,cast,TYPE_CHECKING
 try:
     from .__version__ import version
 except ImportError:
     version = 'v0.0.0+unknown'
 from .bindable import Expressions,Property
 from .utils import LinearScale
-from .journal import MetricJournal
-from .events import MetricDairy
-from .alerts import AlertsJournal
 
-#работа с базой конфигурации проекта
-from sqlalchemy import String,Boolean,BLOB,Integer,create_engine,select,or_,exc,__version__ as sqlalchemy_version
-from sqlalchemy.orm import Session,Mapped
-if sqlalchemy_version<'2':
-    from sqlalchemy import Column as mapped_column
-    from sqlalchemy.orm import declarative_base
-    _Base = declarative_base()
-else:
-    from sqlalchemy.orm import mapped_column,DeclarativeBase
-    class _Base(DeclarativeBase):
-        pass
+if TYPE_CHECKING:
+    from qtpy.QtWidgets import QWidget
+    from qtpy.QtCore import QObject
+    from .journal import MetricJournal
+    from .events import MetricDairy
+    from .alerts import AlertsJournal
 
+import logging
 def console(name: str,level = logging.DEBUG)->logging.Logger:
     """создать логгер на консоль с цветовым выделением
     
@@ -75,6 +64,18 @@ def console(name: str,level = logging.DEBUG)->logging.Logger:
     ret.addHandler(stream)
     return ret
 
+#работа с базой конфигурации проекта
+from sqlalchemy import String,Boolean,BLOB,Integer,create_engine,select,or_,exc,__version__ as sqlalchemy_version
+from sqlalchemy.orm import Session,Mapped
+if sqlalchemy_version<'2':
+    from sqlalchemy import Column as mapped_column
+    from sqlalchemy.orm import declarative_base
+    _Base = declarative_base()
+else:
+    from sqlalchemy.orm import mapped_column,DeclarativeBase
+    class _Base(DeclarativeBase):
+        pass
+
 class _Variables(_Base):
     __tablename__ = "Variables"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -107,7 +108,7 @@ class _Signals(_Base):
 log = console('pysca')
 log.info(f'Initializing PySCA {version}, SqlAlchemy {sqlalchemy_version}')
     
-from typing import TypeVar, Type, Generic, Callable, Union,List
+from typing import TypeVar,  Callable
 T = TypeVar('T', str, bool, float, int)
 
 class App():
@@ -125,16 +126,17 @@ class App():
         self.HOUR = self.var( Property(int,init_val=now.hour),'HOUR')
         self.MSEC = self.var( Property(int,init_val=now.microsecond/1_000),'MSEC')
         self.NOW = self.var( Property(int, init_val=time.time()),'NOW')
-        self.journal:Optional[MetricJournal] = None
-        self.events:Optional[MetricDairy] = None
-        self.alerts:Optional[AlertsJournal] = None
+        self.journal:Optional['MetricJournal'] = None
+        self.events:Optional['MetricDairy'] = None
+        self.alerts:Optional['AlertsJournal'] = None
         self._configured = False
         
     def _ensure_configured(self):
         if not self._configured:
             self.config('default.scada')
     
-    def __findChild(self,o: QObject|None , path: list[str] ):
+    def __findChild(self,o: Optional['QObject'] , path: list[str] ):
+        from qtpy.QtCore import QObject
         if o is None:
             return None
         
@@ -168,6 +170,8 @@ class App():
         self.HOUR(now.hour)
 
     def start(self,ctx: dict ,use_asyncio: bool = False):
+        from qtpy.QtWidgets import QApplication
+        from qtpy.QtCore import QTimer
         self._ = ctx
         
         for name,dev in self.devices.items():
@@ -192,7 +196,8 @@ class App():
                         
         clock.stop( )
         
-    def config(self,db:str): 
+    def config(self,db:str):
+        from qtpy.QtCore import QResource 
         if not os.path.isabs(db):
             workdir = os.getcwd()
             db = f'{workdir}/{db}'
@@ -273,7 +278,7 @@ class App():
             for key in ctx:
                 yield key,ctx[key]
         
-    def bindings( self, target: QObject,ctx: dict|None = None, **kwargs):
+    def bindings( self, target: 'QObject',ctx: dict|None = None, **kwargs):
         """Привязать свойства target к выражениям (python)
         
         Использование: 
@@ -290,8 +295,8 @@ class App():
         helper = None
 
         for prop in kwargs:
-            if target.isWidgetType() and not target.property(b'_effect'):
-                target.setProperty(b'_effect',(FlexEffect(cast(QWidget,target) )))
+            if target.isWidgetType() and not target.property('_effect'):
+                target.setProperty('_effect',(FlexEffect(cast(QWidget,target) )))
                             
             code = kwargs[prop]
             current = target.property(prop)
@@ -320,7 +325,7 @@ class App():
                 if not prop.startswith('__effect_'):
                     ani = QObjectPropertyBinding.create( target, prop, expression ,readOnly=True)
                 else:
-                    effect = target.property(b'_effect')
+                    effect = target.property('_effect')
                     ani = QObjectPropertyBinding.create( effect, str(prop)[9:], expression ,readOnly=True)
                     
                 self.animations.append( ani )
@@ -333,7 +338,7 @@ class App():
                         helper = QObjectDynamicPropertyHelper(target)   #TODO: надо где-то сохранить созданный объект
                     helper.mapping( prop, code )
             
-    def animate(self,obj, ctx: dict | None = None,objectID:str = None):
+    def animate(self,obj, ctx: Optional[dict] = None,objectID:Optional[str] = None):
         """Настроить анимации свойств из базы
 
         Args:
@@ -447,7 +452,7 @@ class App():
                 log.error('ошибка при настройке события: объект(%s), событие(%s), выражение(%s): %s' % (signal.objectID,signal.signal,signal.data,e) )
                 # log.error('error in signal initialization %s(%s)' % (objectID,e) )
                 
-    def window(self,t:type | str | QWidget,*, objectID:str = '',ctx: dict | None = None, baseinstance: Any | None=None, later:bool=False, parent:QWidget | None = None, **kwargs)->'QWidget|None':
+    def window(self,t: 'type|str|QWidget',*, objectID:str = '',ctx: dict | None = None, baseinstance: Any | None=None, later:bool=False, parent:Optional['QWidget'] = None, **kwargs)->Optional['QWidget']:
         try:
             from qtpy import uic
             self._ensure_configured()
