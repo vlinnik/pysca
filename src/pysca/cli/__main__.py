@@ -1,6 +1,6 @@
 import click
 from . import cli
-            
+        
 def entry():
     from qtpy.QtCore import Qt
     from qtpy.QtWidgets import QApplication

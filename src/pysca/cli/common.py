@@ -94,13 +94,21 @@ def load_windows(ctx,pages,modules)->List['QWidget']:
 @click.option('--simulator',is_flag=True,help='Запустить имитацию логики')
 @click.option('--with-asyncio',is_flag=True,help='Использовать qasync QEventLoop для поддержки asyncio')
 @click.option('--paths',multiple=True,help='Пути поиска python-модулей')
+@click.option('--modules',multiple=True,help='Загрузить модули')
 @click.pass_context
-def start(ctx,conf,opentsdb,grafana,grafana_key,simulator,with_asyncio,paths):
+def start(ctx,conf,opentsdb,grafana,grafana_key,simulator,with_asyncio,paths,modules):
     from qtpy.QtWidgets import QMessageBox
     ctx.obj['asyncio'] = with_asyncio
 
     for p in paths:
         sys.path.insert(0, p)        
+    
+    if modules:
+        mods=load_modules(ctx,modules)
+        for m in mods:
+            defname = str(m.__name__).replace('.','_')
+            name = getattr(m,'MODULE',defname)
+            app.context().update({name:m})
         
     if opentsdb:
         parts = opentsdb.split(':')

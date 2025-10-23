@@ -166,7 +166,7 @@ class App():
     def start(self,ctx: dict ,use_asyncio: bool = False):
         from qtpy.QtWidgets import QApplication
         from qtpy.QtCore import QTimer
-        self._ = ctx
+        self._.update(ctx)
         
         for name,dev in self.devices.items():
             log.debug(f'инициализация источника {name}')
