@@ -56,8 +56,11 @@ def load_modules(ctx,modules):
     if len(modules)>0:
         import importlib
         for m in modules:
-            mod = importlib.import_module(m)
-            mods.append(mod)
+            try:
+                mod = importlib.import_module(m)
+                mods.append(mod)
+            except ImportError as e:
+                click.echo(f'Модуль {m} не удалось загрузить: {e}',err=True,color=True)
     return mods
 
 def load_windows(ctx,pages,modules)->List[QWidget]:
