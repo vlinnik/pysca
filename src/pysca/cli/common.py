@@ -1,20 +1,22 @@
 import click
+import sys
 
 from sqlalchemy import exc
 
 from pysca import app
-from pysca.cli.restartmanager import FileWatcherTray
+from pysca.cli import manager
 from pysca.cli.devices import device
 from pysca.cli.modules import module
 
-from qtpy.QtWidgets import QWidget
-from qtpy import QT_API
-from typing import Optional
+from typing import TYPE_CHECKING,Optional
 
-manager:Optional[FileWatcherTray]
+if TYPE_CHECKING:
+    from qtpy.QtWidgets import QWidget
 
 @click.pass_context
 def run(ctx):
+    from qtpy.QtWidgets import QApplication
+    from qtpy import API_NAME
     for m in ctx.obj['modules']:
         if hasattr(m,'initialize') and callable(getattr(m,'initialize')):
             m.initialize( ctx=globals() )
@@ -22,6 +24,11 @@ def run(ctx):
     for dname in app.devices:
         app.devices[dname].start( )
 
+    if 'qt_api' in ctx.obj and API_NAME not in ctx.obj['qt_api']:
+        click.echo(f'   Используется backend {API_NAME}, указаны возможные варианты {ctx.obj['qt_api']}')
+        
+    qApp = QApplication.instance()
+    manager.quit = qApp.quit if qApp else None
     manager.start( )
     app.start(ctx=globals(),use_asyncio=ctx.obj['asyncio'] if 'asyncio' in ctx.obj else False)
     manager.stop( )
@@ -63,7 +70,7 @@ def load_modules(ctx,modules):
                 click.echo(f'Модуль {m} не удалось загрузить: {e}',err=True,color=True)
     return mods
 
-def load_windows(ctx,pages,modules)->List[QWidget]:
+def load_windows(ctx,pages,modules)->List['QWidget']:
     wins = []
             
     for p in pages:
@@ -86,10 +93,14 @@ def load_windows(ctx,pages,modules)->List[QWidget]:
 @click.option('--grafana-key',nargs=1, metavar='<grafana api admin/editor token>',help='API-Token для записи событий в grafana')
 @click.option('--simulator',is_flag=True,help='Запустить имитацию логики')
 @click.option('--with-asyncio',is_flag=True,help='Использовать qasync QEventLoop для поддержки asyncio')
+@click.option('--paths',multiple=True,help='Пути поиска python-модулей')
 @click.pass_context
-def start(ctx,conf,opentsdb,grafana,grafana_key,simulator,with_asyncio):
+def start(ctx,conf,opentsdb,grafana,grafana_key,simulator,with_asyncio,paths):
     from qtpy.QtWidgets import QMessageBox
     ctx.obj['asyncio'] = with_asyncio
+
+    for p in paths:
+        sys.path.insert(0, p)        
         
     if opentsdb:
         parts = opentsdb.split(':')
@@ -187,35 +198,4 @@ def generic(ctx,pages,modules):
     for w in wins:
         w.show( )
     globals()['_MAIN_'] = w
-    run()
-
-def setup(cli: click.Group):
-    global manager
-    from qtpy.QtWidgets import QApplication
-    
-    all = [device,module,navbar,multihead,generic]
-
-    cli.add_command(start,'start')
-    cli.add_command(navbar,'navbar')
-    cli.add_command(multihead,'multihead')
-    cli.add_command(generic,'generic')
-    cli.add_command(device,'device')
-    cli.add_command(module,'module')
-    for cmd in all:
-        device.add_command(cmd)
-        module.add_command(cmd)    
-        
-    if not QApplication.instance():
-        from qtpy.QtCore import Qt
-        import sys
-        QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
-        qApp = QApplication(sys.argv)
-    else:
-        qApp = QApplication.instance()
-    
-    manager = FileWatcherTray(qApp.quit)
-    
-    for name in ['PyQt5', 'PyQt6', 'PySide2', 'PySide6']:
-        if name in sys.modules:
-            click.echo(f'   Используется {name}')
-        
+    run()            

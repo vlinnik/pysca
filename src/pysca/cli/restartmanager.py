@@ -1,16 +1,13 @@
 import os
 import threading
 import sys
-from typing import List
-import time
 
 # Зависимости: pip install watchdog pystray Pillow
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from pystray import Icon, Menu, MenuItem
 from PIL import Image, ImageDraw, ImageFont
-from typing import Callable
-import subprocess
+from typing import Callable,Optional
 
 class FileChangeHandler(FileSystemEventHandler):
     """
@@ -30,34 +27,29 @@ class FileWatcherTray:
     Основной класс для мониторинга файлов и создания иконки в systray при изменениях.
     Совместим с Windows и Linux (требует установки watchdog, pystray, Pillow).
     
+    Имеет свойство quit(функция), которую вызывает при завершении
+    
     Пример использования:
         watcher = FileWatcherTray(qApp.quit)
         watcher.watch(["/path/to/file1.py", "/path/to/file2.txt"])
         watcher.start()
     """
-    def __init__(self,quit:Callable[[],None]):
+    def __init__(self,quit:Optional[Callable[[],None]]=None):
         self.observer = Observer()
         self.handler = FileChangeHandler(self)
         self.watching_paths = set()
         self.icon = None
         self.created = False
         self.thread = None
-        self.quit = quit
+        self.quit:Optional[Callable[[],None]] = quit
         self.cmd = sys.argv
         
     def run(self):
         while True:
             self.icon.run( )
-            print(self.cmd[0],self.cmd[1:])
             os.execv( self.cmd[0],self.cmd[0:])
             break
-            # proc = subprocess.Popen([sys.executable]+self.cmd)
-            # try:
-            #     proc.wait(1)
-            # except subprocess.TimeoutExpired:
-            #     break
                 
-        # proc.poll()
         self.quit()
         self.stop( )
         
@@ -129,9 +121,3 @@ class FileWatcherTray:
             self.observer.stop()
             self.observer.join(timeout=1.0)
         self.watching_paths.clear()
-
-# watcher = FileWatcherTray( lambda: print('ok') )
-# watcher.watch('/home/vlinnik/Development/KRAX/py/modules/pysca/examples/default.scada')
-# watcher.start( )
-# import time
-# time.sleep(100)

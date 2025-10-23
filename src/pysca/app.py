@@ -4,10 +4,6 @@ import time
 import sys,os,glob,re,types
 import json
 from typing import Any,TypeVar,Optional,cast,TYPE_CHECKING
-try:
-    from .__version__ import version
-except ImportError:
-    version = 'v0.0.0+unknown'
 from .bindable import Expressions,Property
 from .utils import LinearScale
 
@@ -41,7 +37,7 @@ def console(name: str,level = logging.DEBUG)->logging.Logger:
         red = "\x1b[31;20m"
         bold_red = "\x1b[31;1m"
         reset = "\x1b[0m"
-        format = "%(name)s.%(levelname)-8s [%(filename)s:%(lineno)d] %(message)s"
+        format = "   %(name)s.%(levelname)-8s [%(filename)s:%(lineno)d] %(message)s"
 
         FORMATS = {
             logging.DEBUG: grey + format + reset,
@@ -106,7 +102,6 @@ class _Signals(_Base):
     data: Mapped[str] = mapped_column(String(128))
 
 log = console('pysca')
-log.info(f'Initializing PySCA {version}, SqlAlchemy {sqlalchemy_version}')
     
 from typing import TypeVar,  Callable
 T = TypeVar('T', str, bool, float, int)
@@ -144,7 +139,6 @@ class App():
             child = o.findChild(QObject, path[1] )
             return self.__findChild(child,path[1:])
         return o
-        
 
     def var(self,v: Property, name: str)->Property:
         self.ctx[name] = v
@@ -179,11 +173,13 @@ class App():
             for p in list(self.ctx.values()):
                 if p.source == name:
                     dev.subscribe(p)
-        
         clock = QTimer()
         clock.timeout.connect( self.tick )
         clock.start(100)
         qApp = QApplication.instance()
+        if not qApp:
+            log.error('Запуск pysca.app возможен только после создания QApplication')
+            return
         if not use_asyncio:
             qApp.exec( )
         else:
