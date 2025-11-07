@@ -30,6 +30,8 @@ def run(ctx):
     qApp = QApplication.instance()
     manager.quit = qApp.quit if qApp else None
     manager.start( )
+    for on_start in ctx.obj['on_start']:
+        on_start( )
     app.start(ctx=globals(),use_asyncio=ctx.obj['asyncio'] if 'asyncio' in ctx.obj else False)
     manager.stop( )
     
@@ -82,7 +84,8 @@ def load_windows(ctx,pages,modules)->List['QWidget']:
             w = app.window(p,ctx=ctx.obj['globals'])
         if not w:
             continue
-        globals()[w.objectName()] = w
+        app.context().update( { w.objectName():w} )
+        # globals()[w.objectName()] = w
         wins.append(w)
     return wins
 
@@ -99,6 +102,7 @@ def load_windows(ctx,pages,modules)->List['QWidget']:
 def start(ctx,conf,opentsdb,grafana,grafana_key,simulator,with_asyncio,paths,modules):
     from qtpy.QtWidgets import QMessageBox
     ctx.obj['asyncio'] = with_asyncio
+    ctx.obj['on_start'] = []
 
     for p in paths:
         sys.path.insert(0, p)        
@@ -108,9 +112,14 @@ def start(ctx,conf,opentsdb,grafana,grafana_key,simulator,with_asyncio,paths,mod
         for m in mods:
             defname = str(m.__name__).replace('.','_')
             name = getattr(m,'MODULE',defname)
+            on_load = getattr(m,'on_load',lambda: None)
+            on_start= getattr(m,'on_start',lambda: None)
             app.context().update({name:m})
+            on_load()
+            ctx.obj['on_start'].append(on_start)
+            
         
-    if opentsdb:
+    if opentsdb and isinstance(opentsdb,str):
         parts = opentsdb.split(':')
         ip = parts[0]
         if len(parts)>1:
@@ -124,7 +133,7 @@ def start(ctx,conf,opentsdb,grafana,grafana_key,simulator,with_asyncio,paths,mod
         app.alerts = OpenTSDBAlerts( app.ctx, ip, port )
         app.alerts.spawn( )
     
-    if grafana:
+    if grafana and isinstance(grafana,str):
         if not grafana_key:
             QMessageBox.critical(None,'Что-то не то..','Параметр grafana требует указать grafana-key')
             raise click.UsageError('Параметр grafana требует указать grafana-key')
