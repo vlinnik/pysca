@@ -1,3 +1,5 @@
+pysca (0.3.1) UNRELEASED; urgency=medium
+
 pysca (0.3.0) UNRELEASED; urgency=medium
 
   [ Linnik V.V ]
@@ -27,7 +29,10 @@ pysca (0.3) UNRELEASED; urgency=medium
   * Сборка на базе репозитория v0.2-g28914f9-dirty
   * Автоматическая генерация версии
 
- -- vlinnik <vlinnik@mail.ru>  Fri, 07 Nov 2025 10:09:11 +0300
+  [ vlinnik ]
+  * UNRELEASED
+
+ -- vlinnik <vlinnik@mail.ru>  Fri, 07 Nov 2025 10:18:15 +0300
 
 pysca (0.1) UNRELEASED; urgency=medium
 

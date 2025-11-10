@@ -1,4 +1,5 @@
-from typing import Any,Type,Protocol
+from types import NoneType
+from typing import Any,Type,cast
 from .__logging import console
 from .monitor import Monitor
 
@@ -144,12 +145,14 @@ class Property(Generic[T]):
         Raises:
             RuntimeWarning: Если value нельзя преобразовать к текущему типу Property.read()
         """
+        if isinstance(value,Property):
+            value = cast(Property,value).read()
         if self._value!=value:
-            if self._eu_type!=type(value) and value is not None:
+            if self._eu_type!=type(value) and value is not None and self._eu_type is not NoneType:
                 try:
                     self._value = self._eu_type(value)
                 except:
-                    raise RuntimeWarning(f'cannot convert new value "{value}" to {self._eu_type.__name__}')
+                    raise RuntimeWarning(f'cannot convert new value "{value}" to {self._eu_type.__name__}({self.name})')
             else:
                 self._value = value
             if self._write:

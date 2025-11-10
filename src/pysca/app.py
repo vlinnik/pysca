@@ -451,6 +451,7 @@ class App():
     def window(self,t: 'type|str|QWidget',*, objectID:str = '',ctx: dict | None = None, baseinstance: Any | None=None, later:bool=False, parent:Optional['QWidget'] = None, **kwargs)->Optional['QWidget']:
         try:
             from qtpy import uic
+            from qtpy.QtWidgets import QWidget
             self._ensure_configured()
             if isinstance(t,type):
                 if len(kwargs)>0:

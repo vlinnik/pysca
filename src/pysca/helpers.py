@@ -152,8 +152,8 @@ def user_window( ui_file: str, base: type = QWidget ):
         ui_file (str): ui-файл, из которого создается пользовательский виджет
         base (type QWidget-derived): от чего наследуется создаваемый класс, default QWidget, должно быть как в ui
     """
-    #from qtpy import uic
-    from .uic import uic
+    from qtpy import uic
+    # from .uic import uic
     
     class __UserWindow(base):
         def __init__(self,parent: QWidget = None,*args,**kwargs):
@@ -163,7 +163,7 @@ def user_window( ui_file: str, base: type = QWidget ):
             flags = self.windowFlags()
             self.setParent(parent)
             self.setWindowFlags(flags)
-            app.window(self,objectID=self.objectName(),ctx=dict(self._ctx()),**kwargs)
+            app.window(self,objectID=self.objectName(),**kwargs)
             
         def _ctx(self):
             for key in self.dynamicPropertyNames():
