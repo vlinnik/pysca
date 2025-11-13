@@ -255,8 +255,11 @@ class Expressions(dict):
                 
             return self.ctx[__key]
         
-        def __repr__(self):
+        def __str__(self):
             return '%s(%s)=%s' % (type(self).__name__, self.source ,self.value)
+        
+        def __repr__(self):
+            return f'Expressions.Expression({self._eu_type.__name__},source=\'{self.source}\')'
         
     def __init__(self):
         dict.__init__(self)

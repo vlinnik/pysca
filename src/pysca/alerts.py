@@ -97,7 +97,7 @@ class AlertRule(MetricFilter):
                 self._locals['metric'] = self.metric
                 self._locals['self'] = self._prop
                 self.tags = { 'item_id':self.name, 'group': 'GLOBAL' , 'level':self.alert_level.name}
-                self._expression = self._target._ctx.create( self._trigger,self._locals)
+                self._expression = self._target._ctx.create( bool, self._trigger,self._locals)
                 self._expression.bind(self._trigger_changed)
                 self._target.register(self.name,self.metric)
                 self._initialized = True

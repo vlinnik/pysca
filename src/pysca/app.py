@@ -488,6 +488,7 @@ class App():
             return w
         except Exception as e:
             log.error('error creating window: %s (%s)',t,e)
+            import traceback; traceback.print_exc();
             
     def object(self,obj:'QObject',objectID:str = '',ctx:dict|None = None):
         if ctx is None:

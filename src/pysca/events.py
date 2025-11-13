@@ -78,9 +78,9 @@ class EventTrigger(MetricFilter):
         try:
             self._locals['value'] = eu
             if not self._initialized:
-                self._expression = self._target._ctx.create( self._trigger,self._locals)
-                self._expression.bind(self._trigger_changed)
                 self._locals['metric'] = self.metric
+                self._expression = self._target._ctx.create( bool, self._trigger,self._locals)
+                self._expression.bind(self._trigger_changed)
                 self._target.register(self.name,self.metric,self.tags)
                 self._initialized = True
                                 
