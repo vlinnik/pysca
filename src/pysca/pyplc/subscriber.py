@@ -49,7 +49,7 @@ class Subscription(Property):
         self.rx +=1            
 
 class Subscriber(TCPClient):
-    def __init__(self, host, port=9004,i_size:int=512,o_size:int=1024):
+    def __init__(self, host, port=9004,i_size:int=512,o_size:int=512):
         self.items = {}
         self.unsubscribed = []
         self.subscriptions = {}

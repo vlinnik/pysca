@@ -8,7 +8,7 @@ manager = FileWatcherTray()
 
 @click.group(invoke_without_command=True)
 @click.option('-w', '--workdir', type=click.Path(exists=True, file_okay=False), default='.', help='Рабочая директория')
-@click.option('--settings',type=click.Path(exists=True),help='Путь к YAML-файлу настроек')
+@click.option('--settings',type=click.Path(exists=True,resolve_path=True),help='Путь к YAML-файлу настроек')
 @click.option('--conf', type=click.Path(exists=True), help='Путь к файлу конфигурации (default.scada)')
 @click.option('--opentsdb', nargs=1,metavar='<ip>[:port]',  help='IP-адрес и порт OpenTSDB')
 @click.option('--grafana', nargs=1,metavar='<ip>[:port]',  help='IP-адрес и порт Grafana')

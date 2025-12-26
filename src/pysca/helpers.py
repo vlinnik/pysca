@@ -1,5 +1,6 @@
 import os
 from qtpy.QtWidgets import QWidget
+from loguru import logger
 
 def register_user_widgets(ui_dir: str,ctx:dict,*,include:str|None = None):
     """В указанной  папке взять все ui-файлы и сделать из них custom_widget_plugin
@@ -14,6 +15,10 @@ def register_user_widgets(ui_dir: str,ctx:dict,*,include:str|None = None):
         ctx (dict): всегда = globals()
         include (str | None, optional): В генерируемом python-коде откуда имортировать реализацию. Defaults to None.
     """
+    if not os.path.exists(ui_dir) or not os.path.isdir(ui_dir):
+        logger.error( f'Каталог {os.path.abspath(ui_dir)} не найден' )
+        return 
+        
     for filename in os.listdir(ui_dir):
         filepath = os.path.join(ui_dir, filename)
         if os.path.isfile(filepath):
@@ -47,8 +52,8 @@ def custom_widget( ui_file: str, base: type = None ):
         ui_file (str): ui-файл, из которого создается пользовательский виджет
         base (type QWidget-derived): от чего наследуется создаваемый класс, default QWidget
     """
-    # from qtpy import uic
-    from .uic import uic
+    from qtpy import uic
+    # from .uic import uic
 
     if base is None:
         _,base = uic.loadUiType(ui_file)

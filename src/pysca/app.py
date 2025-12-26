@@ -460,6 +460,9 @@ class App():
                     w = t( )
             elif isinstance(t,str):
                 log.debug('loading form from UI-file (%s)' % (t))
+                if not os.path.exists( t ):
+                    log.error(f'Файл {os.path.abspath(t)} не существует')
+                    return None
                 w = uic.loadUi( t ,baseinstance=baseinstance)
                 if w is None:
                     log.error('failed to load UI-file') 
