@@ -1,7 +1,26 @@
 import os
+from qtpy import API_NAME
 from qtpy.QtWidgets import QWidget
 from loguru import logger
-
+from typing import Union
+from enum import IntEnum,IntFlag
+try:
+    #пример использования для Qt Designer в конце файла 
+    if API_NAME == 'PyQt5':
+        from PyQt5.QtCore import Q_FLAG as Q_FLAG
+        from PyQt5.QtCore import Q_ENUM as Q_ENUM
+    elif API_NAME == 'PyQt6':
+        from PyQt6.QtCore import pyqtEnum as Q_ENUM
+        from PyQt6.QtCore import pyqtEnum as Q_FLAG
+    elif API_NAME == 'PySide6':
+        from PySide6.QtCore import QFlag as Q_FLAG 
+        from PySide6.QtCore import QEnum as Q_ENUM
+except:
+    def __stub(_: Union[IntEnum,IntFlag,type]):
+        logger.error(f'Проблема в инициализации Q_FLAG/Q_ENUM, {API_NAME}')
+    Q_FLAG = __stub
+    Q_ENUM = __stub    
+    
 def register_user_widgets(ui_dir: str,ctx:dict,*,include:str|None = None):
     """В указанной  папке взять все ui-файлы и сделать из них custom_widget_plugin
     
@@ -175,3 +194,44 @@ def user_window( ui_file: str, base: type = QWidget ):
                 yield bytearray(key).decode(),self.property(key)
 
     return __UserWindow
+
+"""
+Пример custom qt-designer widget со свойством Enum/Flag
+
+class PlaybackHints(IntFlag): #Int Enum для Enum-ов
+    Ceaseless = auto()
+    Rewind = auto()
+    StartOnShow = auto()
+    Bounce = auto()
+    Reversed = auto()
+
+class Demo(QLabel):
+    PlaybackHints = PlaybackHints   # для PyQt6 без этого в designer числом показывает значение 
+    Q_FLAG(PlaybackHints)   # Q_ENUM для enum
+    playbackHintsChanged = Signal(PlaybackHints)
+    
+    #надо для uic, он использует значения Demo.<значение>  
+    Ceaseless = PlaybackHints.Ceaseless 
+    Rewind = PlaybackHints.Rewind
+    StartOnShow = PlaybackHints.StartOnShow
+    Bounce = PlaybackHints.Bounce
+    Reversed = PlaybackHints.Reversed
+                    
+    def __init__(self, parent: QWidget=None, *args, **kwargs):
+        super().__init__(parent)
+        self._hint = Demo.Ceaseless #uic так же делает
+    
+    @Slot(PlaybackHints,name='setPlaybackHints')    #так можно несколько вариантов с разными типами параметров сделать
+    def setPlaybackHints(self,hint):
+        try:
+            self._hint = (hint)
+            self.playbackHintsChanged.emit(PlaybackHints(hint))
+            self.setText(f'{PlaybackHints(hint).name}')
+        except Exception as e:
+            print(e,file=sys.stderr)
+            pass
+
+    @Property(PlaybackHints,fset=setPlaybackHints,designable=True)
+    def playbackHints(self):
+        return PlaybackHints(self._hint)    #для PyQt6 обязательно cast
+"""

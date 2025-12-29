@@ -1,40 +1,59 @@
+from enum import IntFlag,auto
 from qtpy.QtWidgets import QLabel,QWidget
-try:
-    from qtpy.QtCore import Q_FLAGS as pyqtEnum
-except:
-    from qtpy.QtCore import  pyqtEnum
 from qtpy.QtCore import QUrl,QTimer,Property,Signal,Slot
 from qtpy.QtGui import QMovie,QPixmap
-from enum import Flag,auto
-from qtpy.QtWidgets import QMainWindow
-from qtpy.QtWidgets import QApplication
+from pysca.helpers import Q_FLAG,Q_ENUM
+from typing import Optional,Generator,Iterator
+import itertools
 import sys
 
-class PlaybackHint(Flag):
-    Ceaseless = auto()
-    Rewind = auto()
-    StartOnShow = auto()
+class PlaybackHint(IntFlag):
     Bounce = auto()
+    Ceaseless = auto()
     Reversed = auto()
+    Rewind = auto()
 
-class Animation(QLabel):
-    PlaybackHint = PlaybackHint
-    pyqtEnum(PlaybackHint)
+class pyAnimation(QLabel):
+    PlaybackHint= PlaybackHint
+    Q_FLAG(PlaybackHint)
     
     Ceaseless = PlaybackHint.Ceaseless    
-    StartOnShow = PlaybackHint.StartOnShow
     Rewind = PlaybackHint.Rewind
     Bounce = PlaybackHint.Bounce
     Reversed = PlaybackHint.Reversed
             
-    def __init__(self, parent: QWidget=None, *args, **kwargs):
-        self._hint = None
+    def __init__(self, parent: Optional[QWidget]=None, *args, **kwargs):
+        super().__init__(parent,*args, **kwargs)
+        self._hint = 0
         self._running = False
         self._movie = None
         self._touched = False
         self._source = QUrl( )
-        super(Animation, self).__init__(parent,*args, **kwargs)
+        self._sequence:Optional[Iterator[int]] = None
+        self.setSource(QUrl("qrc:///PYSCA/movie.mng"))
 
+    @Slot(bool)
+    def setRunning(self,running: bool):
+        if not self._movie or self._running==running: return
+            
+        self._running = running
+        self._sequence = self._timeline( )
+        self._frameChanged( self._movie.currentFrameNumber() )
+        
+    @Property(bool,fset=setRunning)
+    def running(self) -> bool:
+        if not self._movie: return False
+        return self._running
+        
+    @Slot(PlaybackHint)
+    def setPlaybackHints(self,hint: PlaybackHint):
+        self._hint = hint
+        self._sequence = self._timeline( )
+
+    @Property(PlaybackHint,fset=setPlaybackHints)
+    def playbackHints(self)->PlaybackHint:
+        return PlaybackHint(self._hint)
+        
     @Slot(QUrl)
     def setSource(self, url: QUrl ):
         self._source = url
@@ -59,81 +78,19 @@ class Animation(QLabel):
             self.setPixmap(_preview)
             
         self._preload( )
-            
-    def getSource(self)->QUrl:
+
+    @Property(QUrl,fset=setSource)            
+    def source(self)->QUrl:
         return self._source
-    
-    def getPlaybackHints(self)->PlaybackHint:
-        if self._hint: return self._hint.value    
-        return 0
-
-    def _preloaded(self,frame:int = -1):
-        if self._cache and self._cache.frameCount()>0:
-            self._cache.stop( )
-            self._cache.disconnect( )
-            self._movie.deleteLater( )
-            self._movie = self._cache
-            self._movie.frameChanged.connect( self._frameChanged )
-            self.setMovie(self._movie)
-            self.setRunning(self.isRunning())
-            self._cache = None
-                
-    def _preload(self):
-        if not self._movie or (self._hint and PlaybackHint.Reversed not in self._hint):
-            return
-        self._cache = QMovie(self._movie.fileName( ))
-        self._cache.setCacheMode(QMovie.CacheMode.CacheAll)
-        self._cache.start( )
-        self._cache.finished.connect( self._preloaded )        
-        self._cache.frameChanged.connect( self._preloaded )
-    
-    def setPlaybackHints(self,hint: PlaybackHint | int):
-        self._hint = PlaybackHint(hint)
-        if self._hint and PlaybackHint.Reversed in self._hint and self._movie and self._movie.frameCount()==0:
-            self._preload( )
-    
-    @Slot(bool)
-    def setRunning(self,running: bool):
-        if not self._movie: return
-        
-        self._running = running
-        
-        if running and (not self._hint or PlaybackHint.Reversed not in self._hint):
-            self._movie.start()
-        else:
-            self._movie.stop( )
-            if self._hint and PlaybackHint.Reversed in self._hint and running and self._movie.frameCount()>0:
-                if self._movie.currentFrameNumber()>0:
-                    self._frameChanged( self._movie.currentFrameNumber()-1)
-                else:
-                    self._frameChanged( self._movie.frameCount()-1 )
-            else:
-                self._frameChanged(self._movie.currentFrameNumber())
-            # if PlaybackHint.Bounce in PlaybackHint(self._hint) and self._movie.currentFrameNumber()>0:
-            #     self._movie.jumpToFrame( self._movie.currentFrameNumber()-1 )
-        
-    def isRunning(self) -> bool:
-        if not self._movie: return False
-        return self._running
-
-    def _frameChanged(self,frame: int):
-        if self._hint and PlaybackHint.Bounce in self._hint and frame>0 and not self.isRunning():
-            QTimer.singleShot(self._movie.nextFrameDelay(), lambda: self._movie.jumpToFrame( frame-1 ))
-        if self._hint and PlaybackHint.Ceaseless in PlaybackHint(self._hint) and not self.isRunning() and frame!=0:
-            if frame<self._movie.frameCount( ):
-                QTimer.singleShot(self._movie.nextFrameDelay(), lambda: self._movie.jumpToFrame( frame+1 ))
-            else:
-                QTimer.singleShot(self._movie.nextFrameDelay(), lambda: self._movie.jumpToFrame( 0 ))
-        if self._hint and PlaybackHint.Reversed in self._hint and self.isRunning():
-            if frame>0:
-                QTimer.singleShot(self._movie.nextFrameDelay(), lambda: self._movie.jumpToFrame( frame-1 ))
-            elif self._movie.loopCount()<0:
-                QTimer.singleShot(self._movie.nextFrameDelay(), lambda: self._movie.jumpToFrame( self._movie.frameCount()-1 ))
 
     def isTouched(self)->bool:
         return self._touched 
         
+    def is_set(self,value: PlaybackHint )->bool:
+        return (self._hint & value) == value 
+        
     def mousePressEvent(self, event):
+        if self._movie is None: return
         if (self._movie.currentImage().pixel(event.pos()) & 0xFF00000)>0:
             self._touched = True
             self.touched.emit( self._touched)
@@ -141,20 +98,122 @@ class Animation(QLabel):
     def mouseReleaseEvent(self,event):
         self._touched = False 
         self.touched.emit( self._touched  )
+
+    def _preloaded(self,frame:int = -1):
+        if self._cache is None or self._movie is None: return
+        if self._cache and self._cache.frameCount()>0:
+            self._cache.stop( )
+            self._cache.finished.disconnect( )
+            self._cache.frameChanged.disconnect( )
+            self._movie.deleteLater( )
+            self._cache.jumpToFrame(0 if not self.is_set(PlaybackHint.Reversed) else self._cache.frameCount()-1)
+            self._movie = self._cache
+            self._movie.frameChanged.connect( self._frameChanged )
+            self._movie.setPaused(True)
+            self.setMovie(self._movie)
+            self.setRunning(self.running)
+            self._cache = None
+                
+    def _preload(self):
+        if not self._movie:
+            return
+        self._cache = QMovie(self._movie.fileName( ))
+        self._cache.setCacheMode(QMovie.CacheMode.CacheAll)
+        self._cache.start( )
+        self._cache.finished.connect( self._preloaded )        
+        self._cache.frameChanged.connect( self._preloaded )
             
+    def _jumpToFrame(self,frame: int):
+        if self._movie is None: return
+        if self._movie.currentFrameNumber()!=frame:
+            self._movie.jumpToFrame(frame)
+        
+    def _schedule(self, frame: int ):
+        if self._movie is None: return
+        QTimer.singleShot( max(10,self._movie.nextFrameDelay() ), lambda: self._jumpToFrame( frame ))
+    
+    def _frameChanged(self,frame: int):
+        try:
+            if self._sequence:
+                self._schedule( next(self._sequence) )
+        except StopIteration:
+            self._sequence = None
+
+    def _timeline(self)->Optional[Iterator[int]]:            
+        if not self._movie:
+            return
+        
+        frame = self._movie.currentFrameNumber()
+        seq = list( range(0,self._movie.frameCount()) )
+        
+        if self.is_set(PlaybackHint.Reversed): seq.reverse()
+        if self.is_set(PlaybackHint.Rewind): seq+=seq[:1]
+        
+        index = seq.index(frame) if frame in seq else 0
+
+        if not self.running:
+            if self.is_set(PlaybackHint.Bounce):
+                seq = seq[:index+1]
+                seq.reverse( )
+            else:
+                if self.is_set(PlaybackHint.Ceaseless):
+                    seq=seq[index:]
+                else:
+                    seq=seq[-1:]
+                
+        skip= 1 if len(seq)>0 and seq[0]==frame else 0
+        if self.running and self.is_set(PlaybackHint.Ceaseless):
+            fwd = seq[skip:]
+            if self.is_set(PlaybackHint.Bounce):
+                back = list(reversed(seq[:-1]))
+                seq = fwd + back
+            else:
+                seq = fwd
+            tl = itertools.cycle(seq)
+        else:
+            tl = itertools.islice(seq,skip,len(seq))            
+        
+        return tl
+
+    def changeHint(self, flag: PlaybackHint, on:bool):
+        cur = int(self._hint)
+        all_mask = sum(PlaybackHint)
+        mask = int(flag)
+        cur = (cur & ~mask) & all_mask
+        if on: cur |= mask
+        self.setPlaybackHints( PlaybackHint(cur) )
+
+    def setBounce(self,on:bool):
+        self.changeHint( PlaybackHint.Bounce, on )
+    def setReversed(self,on:bool):
+        self.changeHint( PlaybackHint.Reversed,on )
+    def setCeaseless(self,on:bool):
+        self.changeHint( PlaybackHint.Ceaseless,on )
+    def setRewind(self,on:bool):
+        self.changeHint( PlaybackHint.Rewind, on)
+    
+    @Property(bool,fset = setBounce)
+    def bounce(self): return self.is_set(PlaybackHint.Bounce)
+    @Property(bool,fset = setCeaseless)
+    def ceaseless(self): return self.is_set(PlaybackHint.Ceaseless)
+    @Property(bool,fset = setReversed)
+    def reversed(self): return self.is_set(PlaybackHint.Reversed)
+    @Property(bool,fset = setRewind)
+    def rewind(self): return self.is_set(PlaybackHint.Rewind)
+    
     touched = Signal(bool,arguments=['on'])
     touch   = Property(bool, isTouched, notify = touched)
-    source  = Property(QUrl,getSource,setSource)
-    running = Property(bool,isRunning,setRunning)
-    playbackHints = Property(PlaybackHint,getPlaybackHints,setPlaybackHints)
+
+Animation = pyAnimation 
 
 if __name__=="__main__":
-    import SCADA_qrc
+    from qtpy.QtWidgets import QMainWindow
+    from qtpy.QtWidgets import QApplication
     app = QApplication(sys.argv)
     home = QMainWindow( )
     ani = Animation( home )
-    ani.setSource( QUrl("qrc:/SCADA/dcement.mng"))
-    ani.setPlaybackHints( PlaybackHint.Reversed)
+    ani.setPlaybackHints( PlaybackHint.Ceaseless ) 
+    ani.setRunning (True)
     home.resize(ani.size())
 
     ani.touched.connect( ani.setRunning )

@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="PYSCA">
+    <file alias="movie.mng">movie.mng</file>
+  </qresource>
+</RCC>
