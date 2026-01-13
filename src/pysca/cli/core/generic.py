@@ -26,13 +26,13 @@ def main(
         low, high = stdout.split(":",1) if ":" in stdout else (stdout, 'CRITICAL')
         low, high = log.level(low or 'DEBUG').no, log.level(high or 'CRITICAL').no
         log.add(sys.stdout,level=low, filter=lambda record,low=low,high=high:  
-            (min(low,high) <= record["level"].no <= max(low,high))
+            (min(low,high) <= record["level"].no <= max(low,high)),format='<dim>{time:HH:mm:ss.SSS}</dim> | <level>{level:7}</level> | {name:>20}.py:{line:<5} | <level>{message}</level> '
             )
     if stderr:
         low, high = stderr.split(":",1) if ":" in stderr else (stderr, 'CRITICAL')
         low, high = log.level(low or 'DEBUG').no, log.level(high or 'CRITICAL').no
         log.add(sys.stderr,level=low,filter=lambda record,low=low,high=high:  
-            (min(low,high) <= record["level"].no <= max(low,high))
+            (min(low,high) <= record["level"].no <= max(low,high)),format='<red>{time:HH:mm:ss.SSS}</red> | <level>{level:7}</level> | {name:>20}.py:{line:<5} | <level>{message}</level> '
             )
 
     if workdir:
