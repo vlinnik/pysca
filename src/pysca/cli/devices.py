@@ -1,40 +1,18 @@
-import click
-from pysca import app
-from typing import cast
+import typer
+from typing import List
+from pysca.cli import message
+from pysca.cli.core.devices import device as core_device
 
-def pyplc_device(*_,device,port=9004,scan=100,**kwargs):
-    from pysca.device import PYPLC
-    return PYPLC(device,port=int(port),scan=int(scan))
+app = typer.Typer()
 
-def dummy_device(*args, **kwargs):
-    pass
+@app.command(help='Настройка устройства ввода-вывода')
+def device( ctx: typer.Context, name: str = typer.Argument(...,help='Имя устройства') ,
+        type: str = typer.Option(...,help='Драйвер устройства'), 
+        args: List[str] = typer.Option(None,'--arg','--args',help='Параметры устройства в виде param=value')):
 
-@click.group(invoke_without_command=True,help='Настройка устройства ввода-вывода')
-@click.option('--name',help='Имя устройства (PLC etc)')
-@click.option('--type',help='Используемый драйвер (pyplc etc)')
-@click.option('--args',multiple=True)
-@click.pass_context
-def device(ctx,name,type,args):
-    DEVICE_HANDLES = {
-        'PYPLC' : pyplc_device
-    }
-    params = {}
-    
-    for arg in args:
-        if '=' in arg:
-            k, v = arg.split('=', 1)
-            params[k.strip()] = v.strip()
-    
-    if name not in app.devices:
-        if type.upper() in DEVICE_HANDLES:
-            d = DEVICE_HANDLES[type.upper()](**params)
-        else:
-            d = dummy_device(**params)
+    _args = { }
+    for x in args or []:
+        key,value = x.split('=',1)
+        _args[key]=value
         
-        if d:
-            app.devices[name] = d
-            click.echo(f'   Добавлено устройство {name}')
-        else:
-            click.secho(f'  Не удалось создать устройство {name}',err=True,fg='red')
-    else:
-        click.echo(click.style(f'   Не удалось создать устройство либо уже есть {name}',fg='red'),err=True)
+    core_device(name,type,_args)    

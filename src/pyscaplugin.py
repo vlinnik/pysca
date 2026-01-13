@@ -1,9 +1,11 @@
 #!/usr/bin/python3
-
+import os
 from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import QWidget
 from qtpy.QtDesigner import QPyDesignerCustomWidgetPlugin
 from loguru import logger
+from pysca import pysca_rcc; pysca_rcc()
+from pysca.helpers import register_user_widgets
 
 try:
     from pysca.animation import Animation,PlaybackHint
@@ -93,3 +95,7 @@ try:
             return "pysca.runtimetrend"
 except Exception as e:
     logger.opt(depth=1).error(f'Инициализация расширения PYSCA.RuntimeTrend не удалась: {e}')
+
+if 'PYSCAWIDGETSPATH' in os.environ: 
+    register_user_widgets(os.environ['PYSCAWIDGETSPATH'],globals(),include='pyscaplugin') 
+    pass

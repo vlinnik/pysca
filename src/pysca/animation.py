@@ -28,13 +28,19 @@ class pyAnimation(QLabel):
         self._running = False
         self._movie = None
         self._touched = False
+        self._lazy = False
         self._source = QUrl( )
         self._sequence:Optional[Iterator[int]] = None
-        self.setSource(QUrl("qrc:///PYSCA/movie.mng"))
+        self.setSource(QUrl("qrc:///PYSCA/movie.gif"))
 
     @Slot(bool)
     def setRunning(self,running: bool):
-        if not self._movie or self._running==running: return
+        if not self._movie or (self._running==running and not self._lazy): 
+            self._running = running
+            self._lazy = True
+            return
+        
+        self._lazy = False
             
         self._running = running
         self._sequence = self._timeline( )
@@ -47,6 +53,8 @@ class pyAnimation(QLabel):
         
     @Slot(PlaybackHint)
     def setPlaybackHints(self,hint: PlaybackHint):
+        if self._hint!=hint:
+            self._lazy=True
         self._hint = hint
         self._sequence = self._timeline( )
 
@@ -111,7 +119,7 @@ class pyAnimation(QLabel):
             self._movie.frameChanged.connect( self._frameChanged )
             self._movie.setPaused(True)
             self.setMovie(self._movie)
-            self.setRunning(self.running)
+            self.setRunning(self._lazy)
             self._cache = None
                 
     def _preload(self):

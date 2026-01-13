@@ -1,11 +1,19 @@
 import os
-from datetime import datetime
 import time
 import sys,os,glob,re,types
 import json
-from typing import Any,TypeVar,Optional,cast,TYPE_CHECKING
+import loguru
+from collections import ChainMap
+from datetime import datetime
+from types import FunctionType
+from typing import Any,TypeVar,Dict,Optional,Callable,cast,TYPE_CHECKING
+from pathlib import Path
+from sqlalchemy import create_engine,select,or_,exc
+from sqlalchemy.orm import Session
 from .bindable import Expressions,Property
 from .utils import LinearScale
+from .types import Variables as _Variables,Animations as _Animations,Signals as _Signals
+from .config import init_config,config
 
 if TYPE_CHECKING:
     from qtpy.QtWidgets import QWidget
@@ -14,97 +22,10 @@ if TYPE_CHECKING:
     from .events import MetricDairy
     from .alerts import AlertsJournal
 
-import logging
-def console(name: str,level = logging.DEBUG)->logging.Logger:
-    """создать логгер на консоль с цветовым выделением
+log = loguru.logger
     
-    можно вместо этого:
-    .. highlight:: python
-    .. code-block:: python
-        
-    logging.basicConfig( format = '%(name)s.%(levelname)-8s [%(filename)s:%(lineno)d] %(message)s', level=logging.DEBUG )    
-
-    Args:
-        name (str): имя логгера
-        level (_type_, optional): уровень логгера. logging.DEBUG.
-
-    Returns:
-        logging.Logger: использовать для вывода отладочных сообщениий
-    """
-    class ColoredFormatter(logging.Formatter):
-        grey = "\x1b[38;20m"
-        yellow = "\x1b[33;20m"
-        red = "\x1b[31;20m"
-        bold_red = "\x1b[31;1m"
-        reset = "\x1b[0m"
-        format = "   %(name)s.%(levelname)-8s [%(filename)s:%(lineno)d] %(message)s"
-
-        FORMATS = {
-            logging.DEBUG: grey + format + reset,
-            logging.INFO: yellow + format + reset,
-            logging.WARNING: red + format + reset,
-            logging.ERROR: bold_red + format + reset,
-            logging.CRITICAL: bold_red + format + reset
-        }
-
-        def format(self, record):
-            log_fmt = self.FORMATS.get(record.levelno)
-            formatter = logging.Formatter(log_fmt)
-            return formatter.format(record)
-
-    stream = logging.StreamHandler()
-    stream.setFormatter(ColoredFormatter())
-    stream.setLevel(level)
-    ret = logging.getLogger(name)
-    ret.setLevel(level)
-    ret.addHandler(stream)
-    return ret
-
-#работа с базой конфигурации проекта
-from sqlalchemy import String,Boolean,BLOB,Integer,create_engine,select,or_,exc,__version__ as sqlalchemy_version
-from sqlalchemy.orm import Session,Mapped
-if sqlalchemy_version<'2':
-    from sqlalchemy import Column as mapped_column
-    from sqlalchemy.orm import declarative_base
-    _Base = declarative_base()
-else:
-    from sqlalchemy.orm import mapped_column,DeclarativeBase
-    class _Base(DeclarativeBase):
-        pass
-
-class _Variables(_Base):
-    __tablename__ = "Variables"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(45))
-    type: Mapped[int] = mapped_column(Integer)
-    source: Mapped[str] = mapped_column(String(45))
-    comment: Mapped[str] = mapped_column(String(45))
-    address: Mapped[str] = mapped_column(String(128))
-    logging: Mapped[bool] = mapped_column(Boolean)
-    events: Mapped[bool] = mapped_column(Boolean)
-    alarms: Mapped[bool] = mapped_column(Boolean)
-    properties: Mapped[BLOB] = mapped_column(BLOB)
-
-class _Animations(_Base):
-    __tablename__ = "Animations"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    objectID: Mapped[str] = mapped_column(String(128))
-    className: Mapped[str] = mapped_column(String(45))
-    prop: Mapped[str] = mapped_column('property',String(45))
-    data: Mapped[str] = mapped_column(String(128))
-
-class _Signals(_Base):
-    __tablename__ = "Signals"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    objectID: Mapped[str] = mapped_column(String(128))
-    className: Mapped[str] = mapped_column(String(45))
-    signal: Mapped[str] = mapped_column(String(45))
-    data: Mapped[str] = mapped_column(String(128))
-
-log = console('pysca')
-    
-from typing import TypeVar,  Callable
 T = TypeVar('T', str, bool, float, int)
+F = TypeVar('F', bound=Callable)
 
 class App():
     def __init__(self):
@@ -128,7 +49,7 @@ class App():
         
     def _ensure_configured(self):
         if not self._configured:
-            self.config('default.scada')
+            self.config(config().db)
     
     def __findChild(self,o: Optional['QObject'] , path: list[str] ):
         from qtpy.QtCore import QObject
@@ -150,7 +71,7 @@ class App():
         except Exception as e:
             log.error('error in exec-code: %s (%s)',code,e)
     
-    def eval(self,code: str, ctx:dict|None=None )->Any:
+    def eval(self,code: str, ctx:Optional[dict]=None )->Any:
         return eval( code, self.ctx,  ctx if ctx else self._  )
 
     def context(self)->dict:
@@ -169,7 +90,7 @@ class App():
         self._.update(ctx)
         
         for name,dev in self.devices.items():
-            log.debug(f'инициализация источника {name}')
+            log.debug(f'инициализация источника данных {name}')
             for p in list(self.ctx.values()):
                 if p.source == name:
                     dev.subscribe(p)
@@ -181,29 +102,37 @@ class App():
             log.error('Запуск pysca.app возможен только после создания QApplication')
             return
         if not use_asyncio:
+            for d in self.devices.values():
+                d.start( )
             qApp.exec( )
+            for d in self.devices.values():
+                d.stop( )
         else:
             from qasync import QEventLoop
             import asyncio
             loop = QEventLoop(qApp)
             asyncio.set_event_loop(loop)
+            
+            for d in self.devices.values():
+                d.start( )
             with loop:
                 loop.run_forever( )
+            for d in self.devices.values():
+                d.stop( )
                         
         clock.stop( )
         
-    def config(self,db:str):
+    def config(self,db:Path):
         from qtpy.QtCore import QResource 
         if not os.path.isabs(db):
-            workdir = os.getcwd()
-            db = f'{workdir}/{db}'
+            db = db.absolute()
             
         if not os.path.exists(db):
-            log.error(f'configuration {db} not found')
+            log.error(f'База анимаций {db} не найдена')
             return
         
         db_conn = f'sqlite:///{db}'
-        log.debug(f'opening database {db_conn}')
+        log.debug(f'Открываем базу анимаций {db_conn}')
         engine = create_engine(db_conn, echo=False)
 
         self.session = session = Session(engine)
@@ -223,7 +152,7 @@ class App():
             elif var.type==Property.TYPE_LONG:
                 p = Property( int ) 
             else:
-                raise ValueError('Variable %s type %d not supported' % (str(var.name),int(var.type)))
+                raise ValueError('Переменная %s тип %d не поддерживается' % (str(var.name),int(var.type)))
             
             self.var(p,var.name)
             p.name = var.name
@@ -256,15 +185,15 @@ class App():
                 pass
 
             p.config(p.properties)
-        
-        rcc_dir = os.path.dirname(os.path.abspath(db))
-        log.debug(f'searching resource files in {rcc_dir}')
-        rcc_files = glob.glob('*.rcc',root_dir=rcc_dir)
-        for rcc in rcc_files:
-            mod_name = os.path.splitext(rcc)[0]+'_rc'
-            log.debug(f'loading resources file {rcc_dir}/{rcc}/{mod_name}')
-            sys.modules[mod_name] = types.ModuleType(mod_name)
-            QResource.registerResource(f'{rcc_dir}/{rcc}')
+
+        for rcc_dir in config().resources:        
+            log.debug(f'Поиск ресурсов в {rcc_dir}')
+            rcc_files = glob.glob('*.rcc',root_dir=rcc_dir)
+            for rcc in rcc_files:
+                mod_name = os.path.splitext(rcc)[0]+'_rc'
+                log.debug(f'Загрузка файла ресурсов {rcc_dir}/{rcc}/{mod_name}')
+                sys.modules[mod_name] = types.ModuleType(mod_name)
+                QResource.registerResource(f'{rcc_dir}/{rcc}')
         self._configured = True
 
     def ctxOf(self,target, ctx: dict|None =None):
@@ -452,20 +381,27 @@ class App():
         try:
             from qtpy import uic
             from qtpy.QtWidgets import QWidget
-            self._ensure_configured()
             if isinstance(t,type):
                 if len(kwargs)>0:
                     w = t( **kwargs )
                 else:
                     w = t( )
             elif isinstance(t,str):
-                log.debug('loading form from UI-file (%s)' % (t))
+                t = str(config().ui.joinpath(t))
+                log.debug('Загрузка окна из UI-файла %s' % (t))
                 if not os.path.exists( t ):
                     log.error(f'Файл {os.path.abspath(t)} не существует')
                     return None
-                w = uic.loadUi( t ,baseinstance=baseinstance)
-                if w is None:
-                    log.error('failed to load UI-file') 
+                try:
+                    if not later:
+                        self._ensure_configured( )
+                    t = os.path.abspath(t)
+                    w = uic.loadUi( t ,baseinstance=baseinstance)
+                    if w is None:
+                        log.error(f'Не удалось загрузить UI {t}') 
+                        return None
+                except Exception as e:
+                    log.error(f'Не удалось загрузить UI {t} - {e}') 
                     return None
             elif isinstance(t,QWidget):
                 w = t    
@@ -475,13 +411,14 @@ class App():
                 
             try:
                 if not later:
+                    self._ensure_configured()
                     self.animate(w,objectID=objectID,ctx=ctx)
                     self.signals(w,objectID=objectID,ctx=ctx)
                     self.flush( )
                 else:
                     self.queued.append( (w,objectID,ctx) )
             except exc.SQLAlchemyError as e:
-                log.error('error while initializing animations/signals: %s' % (e._message()))
+                log.error('Ошибка при инициализации анимации/события: %s' % (e._message()))
             
             if parent is not None:
                 flags = w.windowFlags()
@@ -490,7 +427,7 @@ class App():
             
             return w
         except Exception as e:
-            log.error('error creating window: %s (%s)',t,e)
+            log.error(f'Ошибка при создании окна: {t} ({e})')
             import traceback; traceback.print_exc();
             
     def object(self,obj:'QObject',objectID:str = '',ctx:dict|None = None):
@@ -519,3 +456,12 @@ class App():
             except Exception as e:
                 log.warning(f'внимание: проблема в отложенном анимировании объекта object({objectID})')
         self.queued.clear()                        
+
+    def wrap(self,func: FunctionType,ctx: Optional[Dict[str,Any]]=None)->F:
+        func.__globals__.update(ctx or self.ctx)
+        wrapped = FunctionType(func.__code__,func.__globals__,func.__name__,argdefs=func.__defaults__,closure=func.__closure__)
+        wrapped.__annotations__ = func.__annotations__
+        wrapped.__doc__ = func.__doc__
+        wrapped.__qualname__ = func.__qualname__
+        wrapped.__module__ = func.__module__
+        return cast(F,wrapped)

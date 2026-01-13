@@ -44,9 +44,12 @@ def register_user_widgets(ui_dir: str,ctx:dict,*,include:str|None = None):
             name, ext = os.path.splitext(filename)
             if ext in ['.ui']:  # уточни нужные расширения
                 var_name = f"__{name}Plugin"
-                widget = custom_widget(filepath)
-                ctx[var_name] = custom_widget_plugin(widget, name=name,include=include or name.lower())
-                ctx[name] = widget
+                try:
+                    widget = custom_widget(filepath)
+                    ctx[var_name] = custom_widget_plugin(widget, name=name,include=include or name.lower())
+                    ctx[name] = widget
+                except Exception as e:
+                    logger.error(f'Ошибка при инициализации пользовательского элемента {name} - {e}')                    
 
 def custom_widget( ui_file: str, base: type = None ): 
     """Использование на окне пользовательских виджетов, получаемых из ui-файлов. Применяется в связке с custom_widget_plugin

@@ -5,7 +5,7 @@ from .bindable import Property
 from time import time
 
 class PYPLC(Subscriber):
-    def __init__(self, host, port=9004,timeout=10,scan:int=100):
+    def __init__(self, host:str='127.0.0.1', port=9004,timeout=10,scan:int=100):
         super().__init__(host, port,i_size=4096,o_size=512)
         self._timer = QTimer()
         self._timer.timeout.connect(self)
