@@ -48,6 +48,8 @@ def main(
     
     if conf:
         config().db = Path(conf).resolve()
+    
+    os.environ['PYSCARUNTIME'] = '1'
         
 # def batch( *args, settings:Path ,only_paths:bool=False)->Tuple[List[ModuleType],Dict[str,Any]]:
     modules = []
@@ -61,6 +63,10 @@ def main(
             return modules,ctx
     else:
         settings = Path('settings.yaml').resolve( )
+
+    if not settings.exists():
+        log.error(f'Файл настроек {str(settings)} не найден')
+        return modules,ctx
         
     with open(str(settings), 'r', encoding='utf-8') as f:
         params:dict = yaml.safe_load(f) or {}
@@ -92,6 +98,12 @@ def main(
     if conf_dev and not dry:
         for d in conf_dev:
             core_device(**d,simulator=simulator)
+            
+    conf_win:List[Dict[str,Any]] = params.get('windows',[])
+    if conf_win and not dry:
+        from pysca.cli.core.wm import window as core_window
+        for win in conf_win:
+            core_window(**win)
             
     conf_nav:dict = params.get('navbar',{ })
     if conf_nav and not dry:

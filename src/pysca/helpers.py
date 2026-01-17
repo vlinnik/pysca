@@ -1,9 +1,12 @@
 import os
 from qtpy import API_NAME
+from qtpy.QtCore import QResource
 from qtpy.QtWidgets import QWidget
 from loguru import logger
-from typing import Union
+from types import ModuleType
+from typing import Union,Optional,Tuple,List
 from enum import IntEnum,IntFlag
+from pathlib import Path
 try:
     #пример использования для Qt Designer в конце файла 
     if API_NAME == 'PyQt5':
@@ -20,7 +23,21 @@ except:
         logger.error(f'Проблема в инициализации Q_FLAG/Q_ENUM, {API_NAME}')
     Q_FLAG = __stub
     Q_ENUM = __stub    
+
+def _autoload_modules_for(ui_dir: str)->List[ModuleType]:
+    imported: List[ModuleType] = []
+    if Path(ui_dir).joinpath('__init__.py').exists():
+        logger.info( f'В каталоге с пользовательскими ui-виджетами есть __init__.py')
+        import importlib
+        try:
+            mod = importlib.import_module( Path(ui_dir).name )
+            imported.append(mod)
+        except Exception as e:
+            logger.warning(f'Что-то пошло не так: {e}')
+            pass
+    return imported
     
+
 def register_user_widgets(ui_dir: str,ctx:dict,*,include:str|None = None):
     """В указанной  папке взять все ui-файлы и сделать из них custom_widget_plugin
     
@@ -37,7 +54,11 @@ def register_user_widgets(ui_dir: str,ctx:dict,*,include:str|None = None):
     if not os.path.exists(ui_dir) or not os.path.isdir(ui_dir):
         logger.error( f'Каталог {os.path.abspath(ui_dir)} не найден' )
         return 
-        
+
+    imported: List[ModuleType] = []
+    if "DIYED_PROJECT" in os.environ or "PYSCARUNTIME" in os.environ:   #загрузка пользовательской реализации нужна (в qt-designer например не нужна)
+        imported = _autoload_modules_for(ui_dir=ui_dir)
+
     for filename in os.listdir(ui_dir):
         filepath = os.path.join(ui_dir, filename)
         if os.path.isfile(filepath):
@@ -45,17 +66,79 @@ def register_user_widgets(ui_dir: str,ctx:dict,*,include:str|None = None):
             if ext in ['.ui']:  # уточни нужные расширения
                 var_name = f"__{name}Plugin"
                 try:
-                    widget = custom_widget(filepath)
+                    widget = custom_widget(filepath,imported=imported)
                     ctx[var_name] = custom_widget_plugin(widget, name=name,include=include or name.lower())
                     ctx[name] = widget
                 except Exception as e:
                     logger.error(f'Ошибка при инициализации пользовательского элемента {name} - {e}')                    
 
-def custom_widget( ui_file: str, base: type = None ): 
+def user_widgets(ui_dir: str,ctx:dict,*args,**kwargs):
+    """В указанной  папке взять все ui-файлы и сделать из них custom_widget.
+    параметр ctx должен быть =globals(), в нем добавлляются имена классов, которые 
+    создаются (user_widgets например в pyscawidgets.py, чтобы пользовательские виджеты как 
+    будто часть pyscawidgets)
+        
+    Args:
+        ui_dir (str): где искать ui файлы
+        ctx (dict): всегда = globals()
+    """
+    if not os.path.exists(ui_dir) or not os.path.isdir(ui_dir):
+        logger.error( f'Каталог {os.path.abspath(ui_dir)} не найден' )
+        return 
+    
+    imported = _autoload_modules_for(ui_dir=ui_dir)
+        
+    for filename in os.listdir(ui_dir):
+        filepath = os.path.join(ui_dir, filename)
+        if os.path.isfile(filepath):
+            name, ext = os.path.splitext(filename)
+            if ext in ['.ui']:  # уточни нужные расширения
+                try:
+                    widget = custom_widget(filepath,imported=imported)
+                    ctx[name] = widget
+                except Exception as e:
+                    logger.error(f'Ошибка при инициализации пользовательского элемента {name} - {e}')                    
+
+def resolve_class_info(ui_path:str)->Tuple[Optional[str],Optional[str],List[str]]:  #получить базовый класс и имя из ui-файла по тегам <class>&<widget>
+    import xml.etree.ElementTree as ET
+    tree = ET.parse(ui_path)
+    root = tree.getroot()
+    class_tag = root.find('class')
+    widget_tag = root.find('widget')
+    resources_tag = root.find('resources')
+    class_name = class_tag.text if class_tag is not None else None
+    base_class_name = widget_tag.attrib.get('class',None) if widget_tag is not None else None
+    resources: List[str] = []
+    if resources_tag:
+        for qrc in resources_tag.findall('include'):
+            file = qrc.attrib.get('location',None)
+            if file: resources.append(str(Path(ui_path).parent.joinpath(file).resolve()))
+    return class_name,base_class_name,resources
+
+def resolve_base_type(class_name: Optional[str]=None, base_class_name: Optional[str]=None,imported: List[ModuleType] = [])->Optional[type]:  #получить базовый класс и имя из ui-файла по тегам <class>&<widget>
+    import qtpy.QtWidgets as QtWidgets
+    cls = None
+    if class_name is not None:
+        hints: List[ModuleType] = imported
+        try:
+            from pysca.config import config
+            hints += config().imported
+        except:
+            pass
+        for mod in hints:
+            if hasattr(mod,class_name):
+                cls = getattr(mod,class_name)
+                break
+    if cls is None and base_class_name:
+        if hasattr(QtWidgets,base_class_name):
+            cls = getattr(QtWidgets,base_class_name)
+    return cls
+
+def custom_widget( ui_file: str, *, base: Optional[type] = None, imported: List[ModuleType]= [] ): 
     """Использование на окне пользовательских виджетов, получаемых из ui-файлов. Применяется в связке с custom_widget_plugin
     
     Пример: на форме есть однотипные элементы состоящие из кнопки on & off. Можно создать ON_OFF.ui.
-    Для доступности в QtDesigner необходимо создать файл оканчивающийся на plugin.py, например widgetsplugin.py, 
+    Для доступности в QtDesigner необходимо создать файл оканчивающийся на plugin.py, например widgetsplugin.py , 
     в котором должна быть строка
     
     ON_OFF_PLUGIN = custom_widget_plugin('ON_OFF.ui',include='widgets',name='ON_OFF')
@@ -77,23 +160,45 @@ def custom_widget( ui_file: str, base: type = None ):
     from qtpy import uic
     # from .uic import uic
 
+    class_name,base_class_name,resources = resolve_class_info(ui_file)
     if base is None:
-        _,base = uic.loadUiType(ui_file)
+        base = resolve_base_type(class_name,base_class_name,imported=imported)
+        # _,base = uic.loadUiType(ui_file)
     
-    class __CustomWidget(base):
-        def __init__(self,parent: QWidget = None,*args,**kwargs):
+    if base is None:
+        base = QWidget
+        
+    for qrc in resources:
+        path = Path(qrc).with_suffix('.rcc')
+        if not path.exists():
+            logger.warning(f'Файл ресурсов {path.name} не найден')
+            continue
+        QResource.registerResource(str(path))
+        
+        
+    class UserWidget(base):
+        def __init__(self,parent: Optional[QWidget] = None,*args,**kwargs):
             from pysca import app
             super().__init__(parent,*args,**kwargs)
             uic.loadUi(ui_file,self)
             self.setParent(parent)
-            app.window(self,objectID=self.objectName(),ctx=self._ctx(),later=True)        
+            app.window(self,objectID=self.objectName(),ctx=self._ctx(),later=True)  
+            setup = getattr(self, "setupUi", None) 
+            try:
+                if callable(setup): setup(**kwargs)
+            except Exception as e:
+                logger.error(f'Ошибка вызова {self}.setupUi : {e}')
+        
+        def __str__(self):
+            return f'{class_name}({base_class_name})'
+                        
         def _ctx(self):
             for key in self.dynamicPropertyNames():
                 yield bytearray(key).decode(),self.property(key)
 
-    return __CustomWidget
+    return UserWidget
 
-def custom_widget_plugin(widget: str | type, name:str,is_container:bool = False, group: str='PYSCA', include: str='widgetsplugin', whatsThis:str='', toolTip: str=''):
+def custom_widget_plugin(widget: Union[str,type], name:str,is_container:bool = False, group: str='PYSCA', include: str='widgetsplugin', whatsThis:str='', toolTip: str=''):
     """Создать класс, который позволяет использовать пользовательский виджет в QtDesigner + PyQt5. 
     
     Последовательность действий для использования пользовательских виджетов в QtDesigner + PyQt5

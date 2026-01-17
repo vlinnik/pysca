@@ -3,6 +3,7 @@ import sys
 from dataclasses import dataclass,field
 from pathlib import Path
 from typing import List
+from types import ModuleType
 
 from sqlalchemy import String,Boolean,BLOB,Integer,create_engine,select,or_,exc,__version__ as sqlalchemy_version
 from sqlalchemy.orm import Session,Mapped
@@ -17,6 +18,7 @@ class Config():
     resources   : List[Path] = field(default_factory=lambda: [Path.cwd()] )
     db          : Path = field(default_factory=lambda: Path('default.scada'))
     logics      : Path = field(default_factory=lambda: Path.cwd().resolve())
+    imported    : List[ModuleType] = field(default_factory=lambda: [])  #загруженные модули
     
     def __post_init__(self):
         self.workspace = Path(self.workspace).expanduser().absolute()

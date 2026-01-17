@@ -15,7 +15,8 @@ def paths(ctx: typer.Context,
         workspace: Optional[Path] = typer.Option('.',help='Расположение проекта',resolve_path=True),
         forms: Optional[Path] = typer.Option('ui',help='Расположение форм приложения',resolve_path=True),
         widgets: Optional[Path] = typer.Option('widgets',help='Расположение элементов окон',resolve_path=True),
-        simulator: Optional[Path] = typer.Option('simulator',help='Расположение проекта(ов) логики для запуска в режиме имитации',resolve_path=True)
+        simulator: Optional[Path] = typer.Option('simulator',help='Расположение проекта(ов) логики для запуска в режиме имитации',resolve_path=True),
+        resources: List[Path] = typer.Option(None,help='Расположение ресурсов проекта')
         ):
 
     if isinstance(modules,list):
@@ -35,3 +36,6 @@ def paths(ctx: typer.Context,
     
     if simulator:
         core_paths(simulator=simulator)
+        
+    if isinstance(resources,list):
+        core_paths( resources= [ Path(p).resolve() for p in resources] )

@@ -2,13 +2,16 @@ import importlib
 import xml.etree.ElementTree as ET
 import sys
 from pathlib import Path
+from types import ModuleType
 from typing import List,Type,Optional,Dict,Any, TYPE_CHECKING
 from pysca import log
+from pysca.config import config
 
 if TYPE_CHECKING:
     from qtpy.QtWidgets import QWidget
 
 qApp = None
+_wins: Dict[str,'QWidget']  = { }   #
 
 def __prepare_qt():
     global qApp
@@ -24,7 +27,7 @@ def __prepare_qt():
     pysca_rcc( )
 
 
-def resolve_class(ui_path:str,mods:List[Type]):
+def resolve_class(ui_path:str,mods:List[ModuleType]):
     if len(mods)>0:
         tree = ET.parse(ui_path)
         root = tree.getroot()
@@ -48,19 +51,24 @@ def load_modules(modules):
                 mods.append(mod)
             except ImportError as e:
                 log.error(f'Модуль {m} не удалось загрузить: {e}')
+    try:
+        config().imported+=mods
+    except:
+        pass
     return mods
 
-def load_windows(pages,modules,globs: Dict[str,Any] = {} )->List['QWidget']:
+def load_windows(pages: List[Path],modules: List[ModuleType],globs: Dict[str,Any] = {} )->List['QWidget']:
     from pysca import app as _app
     wins = []
             
     for p in pages:
+        ui_path = config().ui.joinpath(p)
         # manager.watch(p)
-        cls = resolve_class(p,modules)
+        cls = resolve_class(str(ui_path),modules)
         if cls is not None:
-            w = _app.window(p,baseinstance=cls(),ctx=globs )
+            w = _app.window(str(ui_path),baseinstance=cls(),ctx=globs )
         else:
-            w = _app.window(p,ctx=globs)
+            w = _app.window(str(ui_path),ctx=globs)
         if not w:
             continue
         _app.context().update( { w.objectName():w} )
@@ -68,25 +76,62 @@ def load_windows(pages,modules,globs: Dict[str,Any] = {} )->List['QWidget']:
     return wins
         
 def navbar(*args,
+        name: Optional[str] = None,
         title: Optional[str] = None,
-        pages: Optional[List[Path]] = None ,
-        tools: Optional[List[Path]] = None,
+        pages: Optional[List[str]] = None ,
+        tools: Optional[List[str]] = None,
         modules: Optional[List[str]] = None,
         dry: bool = False,
         **kwargs
         ):
-    
+    global _wins
     __prepare_qt( )
         
     import pysca.navbar as navbar
-    mods = load_modules(modules) if modules else [] 
-    wins = load_windows(pages,mods) if pages else []
-    for w in wins:
-        navbar.append(w)
-    wins = load_windows(tools,mods) if tools else []
-    for w in wins:
-        navbar.tools(w)
+    for w in pages or []:
+        if w in _wins:
+            navbar.append(_wins[w])
+    for w in tools or []:
+        if w in _wins:
+            navbar.tools(_wins[w])                    
     if title:
         navbar.instance.setWindowTitle(title)
     if not dry: navbar.instance.show()
     return navbar.instance
+
+def window(*args,
+        ui: Path,
+        name: str,
+        title: Optional[str] = None,
+        module: Optional[str] = None,
+        show: bool = False,
+        template: bool = False,
+        **kwargs
+        ):
+    global _wins
+    __prepare_qt( )
+        
+    mods = load_modules([module]) if module else [] 
+    if not template:
+        wins = load_windows([ui],modules=mods)
+        if not wins or not wins[0]:
+            return None
+        win = wins[0]
+
+        setup = getattr(win, "setupUi", None) 
+        try:
+            if callable(setup): setup()
+        except Exception as e:
+            log.error(f'Ошибка инициализации окна {name}.setupUi(): {e}')                                         
+        
+        if title:
+            win.setWindowTitle(title)
+            
+        if show:
+            win.show( )
+        _wins[name] = win
+        return win
+    else:
+        log.warning('Создание шаблона окна пока не реализовано')
+    return None
+    

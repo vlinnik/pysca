@@ -17,7 +17,7 @@ def paths(
         ):
 
     if modules:
-        sys.path = list(set([ str(Path(p).absolute()) for p in modules] + sys.path))
+        sys.path = list(dict.fromkeys([str(Path(m).resolve()) for m in modules] + sys.path )) #list(set([ str(Path(p).resolve()) for p in modules] + sys.path))
         config().modules = [Path(p).resolve() for p in sys.path]
         
     if plugins:

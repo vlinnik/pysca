@@ -6,7 +6,7 @@ import loguru
 from collections import ChainMap
 from datetime import datetime
 from types import FunctionType
-from typing import Any,TypeVar,Dict,Optional,Callable,cast,TYPE_CHECKING
+from typing import Any,TypeVar,Dict,Optional,Callable,cast,TYPE_CHECKING,Generator,Tuple,Union
 from pathlib import Path
 from sqlalchemy import create_engine,select,or_,exc
 from sqlalchemy.orm import Session
@@ -129,62 +129,61 @@ class App():
             
         if not os.path.exists(db):
             log.error(f'База анимаций {db} не найдена')
-            return
-        
-        db_conn = f'sqlite:///{db}'
-        log.debug(f'Открываем базу анимаций {db_conn}')
-        engine = create_engine(db_conn, echo=False)
+        else:        
+            db_conn = f'sqlite:///{db}'
+            log.debug(f'Открываем базу анимаций {db_conn}')
+            engine = create_engine(db_conn, echo=False)
 
-        self.session = session = Session(engine)
-        vars = select(_Variables).order_by(_Variables.type)
-        
-        for var in session.scalars(vars):
-            p = None
+            self.session = session = Session(engine)
+            vars = select(_Variables).order_by(_Variables.type)
             
-            if var.type==Property.TYPE_FLOAT:
-                p = Property( float ) 
-            elif var.type==Property.TYPE_BOOL:
-                p = Property( bool ) 
-            elif var.type==Property.TYPE_STR:
-                p = Property( str ) 
-            elif var.type==Property.TYPE_INT:
-                p = Property( int ) 
-            elif var.type==Property.TYPE_LONG:
-                p = Property( int ) 
-            else:
-                raise ValueError('Переменная %s тип %d не поддерживается' % (str(var.name),int(var.type)))
-            
-            self.var(p,var.name)
-            p.name = var.name
-            p.source = var.source
-            p.address = var.address
-            p.type = var.type
-            p.comment = var.comment
-
-            try:
-                p.properties = cast(dict[str,Any],json.loads( cast(bytes,var.properties).decode() ) )
-            except Exception as e:
-                p.properties = dict[str,Any]( )
-
-            if var.type==Property.TYPE_FLOAT:
-                p.filter = LinearScale
+            for var in session.scalars(vars):
+                p = None
                 
-            if var.logging==True and self.journal:
-                p.filter = self.journal.factory()
+                if var.type==Property.TYPE_FLOAT:
+                    p = Property( float ) 
+                elif var.type==Property.TYPE_BOOL:
+                    p = Property( bool ) 
+                elif var.type==Property.TYPE_STR:
+                    p = Property( str ) 
+                elif var.type==Property.TYPE_INT:
+                    p = Property( int ) 
+                elif var.type==Property.TYPE_LONG:
+                    p = Property( int ) 
+                else:
+                    raise ValueError('Переменная %s тип %d не поддерживается' % (str(var.name),int(var.type)))
                 
-            if var.events==True and self.events:
-                p.filter = self.events.factory()
-                
-            if var.alarms==True and self.alerts:
-                p.filter = self.alerts.factory( )
-            
-            rx = re.compile('^monitor.*')
-            if any(rx.search(key) for key in p.properties):
-                from .monitor import Monitor
-                p.monitor = Monitor( self.exec, comment=var.comment,subject=p,**p.properties )
-                pass
+                self.var(p,var.name)
+                p.name = var.name
+                p.source = var.source
+                p.address = var.address
+                p.type = var.type
+                p.comment = var.comment
 
-            p.config(p.properties)
+                try:
+                    p.properties = cast(dict[str,Any],json.loads( cast(bytes,var.properties).decode() ) )
+                except Exception as e:
+                    p.properties = dict[str,Any]( )
+
+                if var.type==Property.TYPE_FLOAT:
+                    p.filter = LinearScale
+                    
+                if var.logging==True and self.journal:
+                    p.filter = self.journal.factory()
+                    
+                if var.events==True and self.events:
+                    p.filter = self.events.factory()
+                    
+                if var.alarms==True and self.alerts:
+                    p.filter = self.alerts.factory( )
+                
+                rx = re.compile('^monitor.*')
+                if any(rx.search(key) for key in p.properties):
+                    from .monitor import Monitor
+                    p.monitor = Monitor( self.exec, comment=var.comment,subject=p,**p.properties )
+                    pass
+
+                p.config(p.properties)
 
         for rcc_dir in config().resources:        
             log.debug(f'Поиск ресурсов в {rcc_dir}')
@@ -377,7 +376,7 @@ class App():
                 log.error('ошибка при настройке события: объект(%s), событие(%s), выражение(%s): %s' % (signal.objectID,signal.signal,signal.data,e) )
                 # log.error('error in signal initialization %s(%s)' % (objectID,e) )
                 
-    def window(self,t: 'type|str|QWidget',*, objectID:str = '',ctx: dict | None = None, baseinstance: Any | None=None, later:bool=False, parent:Optional['QWidget'] = None, **kwargs)->Optional['QWidget']:
+    def window(self,t: 'type|str|QWidget',*, objectID:str = '',ctx: Optional[Union[dict, Generator[Tuple[str,Any],Any,None] ]] = None, baseinstance: Any | None=None, later:bool=False, parent:Optional['QWidget'] = None, **kwargs)->Optional['QWidget']:
         try:
             from qtpy import uic
             from qtpy.QtWidgets import QWidget
@@ -386,7 +385,7 @@ class App():
                     w = t( **kwargs )
                 else:
                     w = t( )
-            elif isinstance(t,str):
+            elif isinstance(t,str) or isinstance(t,Path):
                 t = str(config().ui.joinpath(t))
                 log.debug('Загрузка окна из UI-файла %s' % (t))
                 if not os.path.exists( t ):
@@ -404,7 +403,9 @@ class App():
                     log.error(f'Не удалось загрузить UI {t} - {e}') 
                     return None
             elif isinstance(t,QWidget):
-                w = t    
+                w = t  
+            else:
+                log.warning('Неизвестный тип параметра t %s' % (type(t)))
 
             for key,item in kwargs.items():
                 w.setProperty(key,item)
