@@ -3,9 +3,10 @@ import xml.etree.ElementTree as ET
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import List,Type,Optional,Dict,Any, TYPE_CHECKING
+from typing import List,Type,Optional,Dict,Any,Tuple,Union,TYPE_CHECKING
 from pysca import log
 from pysca.config import config
+from pysca.helpers import user_window
 
 if TYPE_CHECKING:
     from qtpy.QtWidgets import QWidget
@@ -60,6 +61,10 @@ def load_modules(modules):
 def load_windows(pages: List[Path],modules: List[ModuleType],globs: Dict[str,Any] = {} )->List['QWidget']:
     from pysca import app as _app
     wins = []
+    for m in modules:
+        api = getattr(m,'__all__',[])
+        for item in api:
+            globs[item] = getattr(m,item)
             
     for p in pages:
         ui_path = config().ui.joinpath(p)
@@ -107,7 +112,7 @@ def window(*args,
         show: bool = False,
         template: bool = False,
         **kwargs
-        ):
+        )->Tuple[str,Union[Type,'QWidget',None]]:
     global _wins
     __prepare_qt( )
         
@@ -115,7 +120,7 @@ def window(*args,
     if not template:
         wins = load_windows([ui],modules=mods)
         if not wins or not wins[0]:
-            return None
+            return name,None
         win = wins[0]
 
         setup = getattr(win, "setupUi", None) 
@@ -130,8 +135,10 @@ def window(*args,
         if show:
             win.show( )
         _wins[name] = win
-        return win
+        return name,win
     else:
-        log.warning('Создание шаблона окна пока не реализовано')
-    return None
+        base = resolve_class(config().ui.joinpath(ui),mods)
+        win = user_window(config().ui.joinpath(ui),base)
+            
+    return name,win
     

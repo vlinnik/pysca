@@ -3,6 +3,7 @@ import time
 import sys,os,glob,re,types
 import json
 import loguru
+import functools
 from collections import ChainMap
 from datetime import datetime
 from types import FunctionType
@@ -195,14 +196,24 @@ class App():
                 QResource.registerResource(f'{rcc_dir}/{rcc}')
         self._configured = True
 
-    def ctxOf(self,target, ctx: dict|None =None):
+    def ctxOf(self,target, ctx: Optional[dict] =None) -> Generator[Tuple[str,Any],Any,None]:
+        """Lazy dict-factory: из результата можно получить dict(ctxOf(targe)), который
+        используется для app.window/app.animate 
+
+        Args:
+            target (_type_): _description_
+            ctx (Optional[dict], optional): _description_. Defaults to None.
+
+        Yields:
+            Generator[Tuple[str,Any],Any,None]: _description_
+        """
         for key in target.dynamicPropertyNames():
             yield bytearray(key).decode(),target.property(key)
         if ctx is not None:
             for key in ctx:
                 yield key,ctx[key]
         
-    def bindings( self, target: 'QObject',ctx: dict|None = None, **kwargs):
+    def bindings( self, target: 'QObject',ctx: Optional[dict] = None, **kwargs):
         """Привязать свойства target к выражениям (python)
         
         Использование: 
@@ -262,7 +273,7 @@ class App():
                         helper = QObjectDynamicPropertyHelper(target)   #TODO: надо где-то сохранить созданный объект
                     helper.mapping( prop, code )
             
-    def animate(self,obj, ctx: Optional[dict] = None,objectID:Optional[str] = None):
+    def animate(self,obj, ctx: Optional[Union[dict, Generator[Tuple[str,Any],Any,None] ]] = None,objectID:Optional[str] = None):
         """Настроить анимации свойств из базы
 
         Args:
@@ -277,15 +288,11 @@ class App():
         if not self.session:
             return
                     
-        if not ctx:
-            ctx = { }
-
         if not objectID:
             objectID = obj.objectName() 
         
-        if objectID not in ctx:
-            ctx[objectID] = obj
-            
+        animation_ctx = { 'self': obj ,objectID:obj }
+
         self._ensure_configured( )
         helpers = dict[str,QObjectDynamicPropertyHelper]( )
         animations = select(_Animations).where( or_(_Animations.objectID.startswith(objectID+"."),_Animations.objectID==(objectID)) )
@@ -301,7 +308,7 @@ class App():
                             
             code = animation.data
             try:
-                resolved = eval(f'f\'{code}\'',None,dict(self.ctxOf(obj,ctx)))
+                resolved = eval(f'f\'{code}\'',None,dict(self.ctxOf(obj,ChainMap(animation_ctx,ctx or {}))))
                 code = resolved
             except Exception as e:
                 pass
@@ -333,12 +340,10 @@ class App():
                         
                     self.animations.append( ani )
                     ani.update(expression.value)
-                    
-                    
             except Exception as e:
-                log.error('ошибка при настройки анимации: объект(%s), свойство(%s), выражение(%s): %s' % (animation.objectID,animation.prop,animation.data,e) )
+                log.error('ошибка при настройки анимации: объект(%s/%s), свойство(%s), выражение(%s): %s' % (animation.objectID,target.objectName(),animation.prop,animation.data,e) )
             
-    def signals(self, obj, objectID: str = '',ctx:dict|None = None):
+    def signals(self, obj, objectID: str = '',ctx: Optional[Union[dict, Generator[Tuple[str,Any],Any,None] ]] = None):
         from .qtac import QObjectSignalHandler
 
         if not obj:
@@ -349,9 +354,8 @@ class App():
         
         if not objectID:
             objectID = obj.objectName() 
-        
-        if ctx is None:
-            ctx = { }
+                    
+        signal_ctx = { 'self': obj }
 
         self._ensure_configured( )
         signals = select(_Signals).where( or_(_Signals.objectID.startswith(objectID+"."),_Signals.objectID==(objectID)) )
@@ -361,7 +365,7 @@ class App():
                 if target:
                     code = signal.data
                     try:
-                        resolved = eval(f'f\'{code}\'',None,ctx)
+                        resolved = eval(f'f\'{code}\'',None,dict(self.ctxOf(obj,ChainMap(signal_ctx,ctx or {}))))
                         code = resolved
                     except Exception as e:
                         pass                    
@@ -370,11 +374,9 @@ class App():
                     self.slots.append(QObjectSignalHandler(target,signal.signal,code,self.context,self.ctx,this = obj,user_ctx=ctx))
                 else:
                     log.error('для события нет объекта: объект(%s), событие(%s), выражение(%s)' % (signal.objectID,signal.signal,signal.data) )
-                    # log.warning(f'no {signal.objectID} in {obj.objectName()}')
                     
             except Exception as e:
                 log.error('ошибка при настройке события: объект(%s), событие(%s), выражение(%s): %s' % (signal.objectID,signal.signal,signal.data,e) )
-                # log.error('error in signal initialization %s(%s)' % (objectID,e) )
                 
     def window(self,t: 'type|str|QWidget',*, objectID:str = '',ctx: Optional[Union[dict, Generator[Tuple[str,Any],Any,None] ]] = None, baseinstance: Any | None=None, later:bool=False, parent:Optional['QWidget'] = None, **kwargs)->Optional['QWidget']:
         try:
@@ -458,11 +460,37 @@ class App():
                 log.warning(f'внимание: проблема в отложенном анимировании объекта object({objectID})')
         self.queued.clear()                        
 
-    def wrap(self,func: FunctionType,ctx: Optional[Dict[str,Any]]=None)->F:
-        func.__globals__.update(ctx or self.ctx)
-        wrapped = FunctionType(func.__code__,func.__globals__,func.__name__,argdefs=func.__defaults__,closure=func.__closure__)
-        wrapped.__annotations__ = func.__annotations__
-        wrapped.__doc__ = func.__doc__
-        wrapped.__qualname__ = func.__qualname__
-        wrapped.__module__ = func.__module__
-        return cast(F,wrapped)
+    def inject(self,ctx: Optional[Dict[str,Any]]=None)->F:
+        """В теле функции сделать доступными IO переменные, окна и загруженные модули
+
+        применять
+        ```
+        @app.inject()
+        def on_start():
+            #тут уже доступны переменные ввода-вывода, например SECOND
+            pass
+        ```
+
+        Args:
+            ctx (Optional[Dict[str,Any]], optional): Что должно быть доступно вместо self.context(). Defaults to None.
+
+        Returns:
+            F: Декоратор для функций
+        """
+        def decorator(func: FunctionType):
+            @functools.wraps(func)
+            def wrapped(*args,**kwargs):
+                new_globals = func.__globals__.copy( )
+                new_globals.update(ctx or self._)
+                new_globals.update(self.ctx)
+                cloned = FunctionType(func.__code__,new_globals,func.__name__,argdefs=func.__defaults__,closure=func.__closure__)
+                return cloned(*args,**kwargs)
+            return wrapped
+        return decorator                                
+        # func.__globals__.update( dict(ChainMap(ctx or self.context(),self.ctx )) )
+        # wrapped = FunctionType(func.__code__,func.__globals__,func.__name__,argdefs=func.__defaults__,closure=func.__closure__)
+        # wrapped.__annotations__ = func.__annotations__
+        # wrapped.__doc__ = func.__doc__
+        # wrapped.__qualname__ = func.__qualname__
+        # wrapped.__module__ = func.__module__
+        # return cast(F,wrapped)

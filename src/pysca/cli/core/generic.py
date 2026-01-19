@@ -52,8 +52,8 @@ def main(
     os.environ['PYSCARUNTIME'] = '1'
         
 # def batch( *args, settings:Path ,only_paths:bool=False)->Tuple[List[ModuleType],Dict[str,Any]]:
-    modules = []
-    ctx = { }
+    modules:List[ModuleType] = []
+    ctx:Dict[str,Any] = { }
 
     if override:    #только переопределение настроек
         return modules,ctx
@@ -83,10 +83,10 @@ def main(
     conf_mods:List[Any] = params.get('modules',[])
     if conf_mods and not dry:
         from pysca.cli.core.modules import modules as core_modules
-        for params in conf_mods:
-            mod,instance = core_modules(**params)
+        for mod_params in conf_mods:
+            mod,instance = core_modules(**mod_params)
             if mod: modules.append(mod)
-            if instance: ctx[params.get('alias',params['name'])] = instance
+            if instance: ctx[mod_params.get('alias',mod_params['name'])] = instance
 
     conf_sim: List[dict] = params.get('simulator',[])            
     if conf_sim and not dry and simulator:
@@ -103,10 +103,11 @@ def main(
     if conf_win and not dry:
         from pysca.cli.core.wm import window as core_window
         for win in conf_win:
-            core_window(**win)
+            key,sym = core_window(**win)
+            ctx.update({key:sym})
             
     conf_nav:dict = params.get('navbar',{ })
     if conf_nav and not dry:
-        navbar(**conf_nav)
+        ctx.update({'navbar':navbar(**conf_nav)})
         
     return modules,ctx

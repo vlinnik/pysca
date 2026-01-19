@@ -8,7 +8,7 @@ from pysca.config import config
 def modules(
         *_,
         name: str,
-        args: Optional[Dict[str,Any]],
+        args: Optional[Dict[str,Any]]=None,
         **kwargs
         )->Tuple[ModuleType,Any]:
     params = args or { }

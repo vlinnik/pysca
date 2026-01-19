@@ -74,7 +74,7 @@ def register_user_widgets(ui_dir: str,ctx:dict,*,include:str|None = None):
 
 def user_widgets(ui_dir: str,ctx:dict,*args,**kwargs):
     """В указанной  папке взять все ui-файлы и сделать из них custom_widget.
-    параметр ctx должен быть =globals(), в нем добавлляются имена классов, которые 
+    параметр ctx должен быть =globals(), в нем добавляются имена классов, которые 
     создаются (user_widgets например в pyscawidgets.py, чтобы пользовательские виджеты как 
     будто часть pyscawidgets)
         
@@ -266,7 +266,7 @@ def custom_widget_plugin(widget: Union[str,type], name:str,is_container:bool = F
     
     return __CUSTOM_WIDGET_PLUGIN
 
-def user_window( ui_file: str, base: type = QWidget ): 
+def user_window( ui_file: str, base: type = None ): 
     """Использование пользовательских окон, получаемых из ui-файлов. 
     
     Пример: Однотипные элементы (конвейеры) имеют одинаковое окно для настроек/управления. Можно создать conveyor_dialog.ui.
@@ -286,12 +286,22 @@ def user_window( ui_file: str, base: type = QWidget ):
     """
     from qtpy import uic
     # from .uic import uic
+    class_name,base_class_name,resources = resolve_class_info(ui_file)
+    if base is None:
+        base = resolve_base_type(class_name,base_class_name)
     
     class __UserWindow(base):
         def __init__(self,parent: QWidget = None,*args,**kwargs):
             from pysca import app
             super().__init__(parent,*args)
             uic.loadUi(ui_file,self)
+            for key,item in kwargs.items():
+                self.setProperty(key,item)
+            try:
+                setup = getattr(self,'setupUi',None)
+                if setup and callable(setup):setup()
+            except Exception as e:
+                logger.error(f'Что то пошло не так в вызове setupUi для {base}: {e}')
             flags = self.windowFlags()
             self.setParent(parent)
             self.setWindowFlags(flags)

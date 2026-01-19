@@ -168,6 +168,6 @@ class QObjectSignalHandler():
             args[arg[0]] = arg[1]
         args['self'] = self.obj
         args['this'] = self.this
-        args.update( self.user_ctx )
+        args.update( self.user_ctx or { } )
         
         exec( self.code, dict(self.ctx, **self.globals()) , args )

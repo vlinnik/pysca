@@ -61,7 +61,7 @@ def main(
         print(_version)
         return typer.Exit(0)
 
-    mods,syms = core_main(conf=conf,workdir=workdir,simulator=simulator,stdout=stdout,stderr=stderr,settings=settings,dry=dry or query is not None)
+    mods,syms = core_main(conf=conf,workdir=workdir,simulator=simulator,stdout=stdout,stderr=stderr,settings=settings,dry=dry or query is not None or ctx.invoked_subcommand is not None)
     
     ctx.obj['modules'] = mods
     ctx.obj['globals'].update(syms)
@@ -80,7 +80,7 @@ def main(
             case _: typer.echo(f'Неизвестная переменная {query} запрошена')
 
     if not dry and not query:
-        _app.ctx.update( syms )
+        _app.context().update(syms)
         for m in mods:
             if hasattr(m,'on_start'):
                 m.on_start( )
@@ -106,16 +106,6 @@ def tool(ctx: typer.Context,
         subprocess.run([other]+(args or []))
         
     
-# @app.command(help='Загрузка параметров из конфигурационного файла YAML')
-# def batch(
-#     ctx: typer.Context, 
-#     settings:Path = typer.Option('settings.yaml',resolve_path=True,help='Имя файла с настройками'),
-#     env: bool = typer.Option(False,help='Загрузить только переменные окружения'),
-#     ):
-#     mods,syms = core_batch(settings=settings,only_paths=env) 
-#     ctx.obj['modules']=mods
-#     ctx.obj['globals'].update(syms)
-
 def entry():
     app()
             

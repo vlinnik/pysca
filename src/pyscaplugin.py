@@ -97,5 +97,5 @@ except Exception as e:
     logger.opt(depth=1).error(f'Инициализация расширения PYSCA.RuntimeTrend не удалась: {e}')
 
 if 'PYSCAWIDGETSPATH' in os.environ: 
-    register_user_widgets(os.environ['PYSCAWIDGETSPATH'],globals(),include='pyscaplugin') 
+    register_user_widgets(os.environ['PYSCAWIDGETSPATH'],globals(),include='pyscawidgets') 
     pass
