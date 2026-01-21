@@ -47,7 +47,7 @@ def view(
         for arg in args:
             params.update( __args_parse(arg) )
             
-    return core_view(cls=cls,name=name,title=title,show=show,parent=parent,data=data,**params)
+    return core_view(cls=cls,name=name,title=title,show=show,parent=parent,data=data,args=params)
 
 @app.command( help='Главное окно с панелью навигации и рабочим пространством' )
 def navbar(ctx:typer.Context,

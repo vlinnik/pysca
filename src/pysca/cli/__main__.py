@@ -12,6 +12,7 @@ from pysca.cli.wm import app as wm
 from pysca.cli.paths import app as paths
 from pysca.cli.devices import app as devices
 from pysca.cli.modules import app as modules
+from pysca.cli.core.components import init_grafana
 from pysca.cli.core.generic import main as core_main
 from pysca.config import config
 
@@ -89,6 +90,18 @@ def main(
 def simulator():
     pass
 
+@app.command(help='Настройка/инициализация docker-compose.yaml для запуска grafana')
+def grafana(ctx: typer.Context,
+    init: Optional[str] = typer.Option(None,help='Выбор какой шаблон использовать'), 
+    name: Optional[str] = typer.Option(None,help='Суффикс для имени контейнеров'),
+    password: str = typer.Option('admin',help='Пароль админа при инициализации'),
+    networks: str = typer.Option('monitoring',help='Сеть для контейнеров')
+):
+    if init=='grafana+opentsdb':
+        init_grafana(name=name or config().workspace.name.lower(),password=password,networks=networks)
+        typer.echo(f'Файл {config().workspace.joinpath('docker-compose.yaml')} обновлен')
+        ctx.obj['dry'] = True
+    
 @app.command(help='Запуск утилит (designer etc.)')
 def tool(ctx: typer.Context, 
         designer: bool = typer.Option(False,help='Запустить Qt-Designer'),

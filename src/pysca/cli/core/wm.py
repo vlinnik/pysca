@@ -20,9 +20,8 @@ def __prepare_qt():
     from qtpy.QtWidgets import QApplication
     from pysca import pysca_rcc
     
-    QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
-    
     if not QApplication.instance():
+        QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
         qApp = QApplication(sys.argv)
         
     pysca_rcc( )
@@ -184,7 +183,7 @@ def view(*_,
             was = win.property(key)
             raw = args[key]
             try:
-                match type(was).__name__,key:
+                match type(was).__name__:
                     case 'str': val = raw
                     case 'bool': val = raw.lower() in ('true','y','on','1')
                     case 'QSize': 
@@ -192,7 +191,7 @@ def view(*_,
                         x,y = raw.split('x',1)
                         val = QSize(int(x),int(y))
                     case 'QIcon':
-                        from qtpy.QtWidgets import QIcon
+                        from qtpy.QtGui import QIcon
                         val = QIcon(raw)
                     case 'QUrl':
                         from qtpy.QtCore import QUrl

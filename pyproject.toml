@@ -39,7 +39,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = ['qtpy', 'sqlalchemy','click','opentsdb_client','grafana_client','pystray','watchdog','pyyaml','qasync','PythonQwt','loguru','typer']
+dependencies = ['qtpy', 'sqlalchemy','click','opentsdb_client','grafana_client','pystray','watchdog','pyyaml','qasync','PythonQwt','loguru','typer','ruamel.yaml','jinja2']
 
 [project.urls]
 "Homepage" = "https://github.com/vlinnik/pysca"
