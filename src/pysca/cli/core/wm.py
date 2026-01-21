@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import List,Type,Optional,Dict,Any,Tuple,Union,TYPE_CHECKING
+from typing import List,Type,Optional,Dict,Any,Tuple,Union,TYPE_CHECKING,cast
 from pysca import log
 from pysca.config import config
 from pysca.helpers import user_window
@@ -141,4 +141,68 @@ def window(*args,
         win = user_window(config().ui.joinpath(ui),base)
             
     return name,win
+
+def view(*_,
+        cls: str,
+        name: Optional[str] = None,
+        parent: Optional[str] = None,
+        title: Optional[str] = None,
+        show: bool = True,
+        data: Optional[str] = None,
+        args: Dict[str,Any] = {},
+        **kwargs
+        )->Tuple[str,Union['QWidget',None]]:
+    global _wins
+    __prepare_qt( )
     
+    win:Union['QWidget',None] = None
+    p = _wins.get(parent,None)
+    w = _wins.get(cls,None)
+    try:    
+        if w is not None and isinstance(w,type):
+            win = w(parent=p,**args)
+        else:
+            import qtpy.QtWidgets as qtwidgets
+            w = getattr(qtwidgets,cls,None)
+            if w: 
+                win = w(parent=None)
+            else:
+                match cls:
+                    case 'browser':
+                        from qtpy.QtWebEngineWidgets import QWebEngineView
+                        from qtpy.QtCore import QUrl
+                        win = QWebEngineView()
+                        if data: win.setUrl(QUrl(data))
+    except Exception as e:
+        log.error(f'При создании окна {view}[{cls}] что-то пошло не так: {e}')
+        
+    if win: 
+        if show: win.show( )
+        if title: win.setWindowTitle(title)
+        if name: win.setObjectName(name)
+        for key in args:
+            was = win.property(key)
+            raw = args[key]
+            try:
+                match type(was).__name__,key:
+                    case 'str': val = raw
+                    case 'bool': val = raw.lower() in ('true','y','on','1')
+                    case 'QSize': 
+                        from qtpy.QtCore import QSize
+                        x,y = raw.split('x',1)
+                        val = QSize(int(x),int(y))
+                    case 'QIcon':
+                        from qtpy.QtWidgets import QIcon
+                        val = QIcon(raw)
+                    case 'QUrl':
+                        from qtpy.QtCore import QUrl
+                        val = QUrl(raw)
+                    case 'NoneType': 
+                        val = raw
+                    case _: val = type(was)(raw)
+                win.setProperty(key,val)
+            except Exception as e:
+                log.warning(f'Не получилось {name}.{key}={raw} - {e}')
+
+    if name: _wins[name] = win
+    return name,win

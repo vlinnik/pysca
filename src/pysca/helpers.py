@@ -291,15 +291,15 @@ def user_window( ui_file: str, base: type = None ):
         base = resolve_base_type(class_name,base_class_name)
     
     class __UserWindow(base):
-        def __init__(self,parent: QWidget = None,*args,**kwargs):
+        def __init__(self,parent: Optional[QWidget] = None,*args,**kwargs):
             from pysca import app
-            super().__init__(parent,*args)
+            super().__init__(parent,*args,**kwargs)
             uic.loadUi(ui_file,self)
             for key,item in kwargs.items():
                 self.setProperty(key,item)
             try:
                 setup = getattr(self,'setupUi',None)
-                if setup and callable(setup):setup()
+                if setup and callable(setup):setup(**kwargs)
             except Exception as e:
                 logger.error(f'Что то пошло не так в вызове setupUi для {base}: {e}')
             flags = self.windowFlags()

@@ -106,6 +106,13 @@ def main(
             key,sym = core_window(**win)
             ctx.update({key:sym})
             
+    conf_view: List[Dict[str,Any]] = params.get('views',[])
+    if conf_view and not dry:
+        from pysca.cli.core.wm import view as core_view
+        for view in conf_view:
+            key,sym = core_view(**view)
+            ctx.update({key:sym})
+            
     conf_nav:dict = params.get('navbar',{ })
     if conf_nav and not dry:
         ctx.update({'navbar':navbar(**conf_nav)})

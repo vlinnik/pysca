@@ -331,7 +331,7 @@ class App():
                         helpers[animation.objectID].mapping( animation.prop,self.ctx[code] )
                 else:
                     current = target.property(animation.prop)
-                    expression = self.ctx.create(type(current),code,locals=ctx)
+                    expression = self.ctx.create(type(current),code,locals=dict(self.ctxOf(obj,ChainMap(animation_ctx,ctx or {}))))
                     if not animation.prop.startswith('__effect_'):
                         ani = QObjectPropertyBinding.create( target, animation.prop, expression ,readOnly=True)
                     else:
