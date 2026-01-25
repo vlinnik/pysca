@@ -62,4 +62,4 @@ def navbar(
     
     desc:Dict[str,Any] = { 'title':title,'pages':pages } if title else {'pages':pages}
     if tools: desc.update({'tools': tools})
-    update_config(workdir,{'navbar':[desc]})
+    update_config(workdir,{'navbar':desc})

@@ -37,6 +37,7 @@ def query(
     workspace: bool = typer.Option(False,help='Расположение проекта'),
     forms: bool = typer.Option(False,help='Расположение экранных форм'),
     widgets: bool = typer.Option(False,help='Расположение пользовательских виджетов'),
+    resources: bool = typer.Option(None,help='Расположение ресурсов проекта'),
     raw: bool = typer.Option(False,help='Списком без дополнений')
     ):
     init_env(workdir)
@@ -55,5 +56,5 @@ def query(
         else: typer.echo(os.environ.get('PYQTDESIGNERPATH'))
     if forms: typer.echo(str(config().ui))
     if widgets: typer.echo(str(config().widgets))
-    if workspace:
-        typer.echo(config().workspace)
+    if workspace: typer.echo(config().workspace)
+    if resources: output(config().resources,True)

@@ -153,8 +153,7 @@ def view(*_,
         name: Optional[str] = None,
         parent: Optional[str] = None,
         title: Optional[str] = None,
-        show: bool = True,
-        data: Optional[str] = None,
+        show: bool = False,
         args: Dict[str,Any] = {},
         **kwargs
         )->Tuple[str,Union['QWidget',None]]:
@@ -171,14 +170,15 @@ def view(*_,
             import qtpy.QtWidgets as qtwidgets
             w = getattr(qtwidgets,template,None)
             if w: 
-                win = w(parent=None)
+                win = w(parent=_wins.get(parent,None))
             else:
                 match template:
                     case 'browser':
                         from qtpy.QtWebEngineWidgets import QWebEngineView
                         from qtpy.QtCore import QUrl
-                        win = QWebEngineView()
-                        if data: win.setUrl(QUrl(data))
+                        win = QWebEngineView(parent=_wins.get(parent,None))
+                    case _:
+                        log.warning(f'Класс окна {template} не поддерживается')
     except Exception as e:
         log.error(f'При создании окна {view}[{template}] что-то пошло не так: {e}')
         

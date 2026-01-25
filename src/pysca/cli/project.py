@@ -5,56 +5,130 @@ from pathlib import Path
 from types import ModuleType
 from typing import Optional, List, Dict, Any
 from pysca import app as _app, log
-from pysca.config import init_env,update_config
-from pysca.cli.core.components import init_grafana
+from pysca.config import init_env,update_config,config
+from pathlib import Path
+from typing import Dict,Any,cast
+from ruamel.yaml import YAML
+from pathlib import Path
+from importlib.resources import files
+from jinja2 import Environment, FileSystemLoader, Template
+from pysca import log
+from pysca.config import config
+
+yaml = YAML()
+yaml.preserve_quotes = True
 
 app = typer.Typer(name='project', help='Запуск/настройка проекта')
 
+def __load_template(base:Path, template_file: str)->Template:
+    # шаблон
+    env = Environment(
+        loader=FileSystemLoader(str(base)),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    template = env.get_template(f"{template_file}")
+
+    return template
+
+def __merge_config(base: Dict[str,Any], new: dict):
+    if base is None: return new
+    for key, value in new.items():
+        if (
+            key in base
+            and isinstance(base[key], dict)
+            and isinstance(value, dict)
+        ):
+            __merge_config(base[key], value)
+        elif (
+            key in base 
+            and isinstance(base[key],list)
+            and isinstance(value,list)
+        ):
+            base[key]+= value
+            base[key] = list(set(base[key]))
+        else:
+            base[key] = value
+
+def __update_yaml(target_path:Path, target_yaml:Dict[str,Any]):
+    if target_path.exists():
+        data = yaml.load(target_path.read_text())
+    else:
+        data = target_yaml
+
+    __merge_config(data,target_yaml)
+    
+    target_path.parent.mkdir(parents=True,exist_ok=True)
+    with target_path.open("w+") as f:
+        yaml.dump(data, f)
+
+def init_grafana(
+            suffix: str ,
+            networks: str ,
+            password: str ,
+            ):
+    opts = { 'suffix':suffix,'networks':networks,'password':password}
+    template_base = Path(str(files("pysca.cli.templates.grafana").joinpath('docker-compose.yaml'))).parent
+        
+    templates = [
+                ('docker-compose.yaml',config().workspace),
+                ('datasources.yaml',config().workspace / 'grafana' / 'provisioning' / 'datasources') 
+                ]
+    
+    for file,target in templates:
+        try:
+            template = __load_template(template_base,template_file=file)
+            rendered_yaml = yaml.load(template.render(**opts))    
+            __update_yaml(target.joinpath(file),rendered_yaml)
+        except Exception as e:
+            log.warning(f'При создании из шаблона {file} в {target} что-то пошло не так: {e}')
+
 @app.command(help='Настройка/инициализация проекта')
 def init(
-    ctx: typer.Context,
-    opentsdb: bool = typer.Option(True,help='Используем opentsdb для исторических данных'), 
+    grafana: str = typer.Option(None,help='Инициализация grafana + opentsdb для исторических данных'), 
     suffix: Optional[str] = typer.Option(None,help='Суффикс для имён контейнеров'),
     password: str = typer.Option('admin',help='Пароль админа при инициализации grafana'),
     networks: str = typer.Option('monitoring',help='Сеть для контейнеров'),
     forms: Path = typer.Option('ui',help='Расположение UI-файлов окон'),
     widgets: Path = typer.Option('widgets',help='Где находятся пользовательские виджеты'),
-    conf: Path = typer.Argument('src/gui/data/default.scada',help='Имя файла с базой анимаций, переменных'),
-    workdir: Path = typer.Option(envvar='PYSCAWORKDIR', help='Где расположен конфигурационный файл проекта')):
+    workdir: Path = typer.Argument(Path('src/gui/data'),envvar='PYSCAWORKDIR', help='Расположение конфигурационного файла проекта')):
 
+    opts = { 'forms' : forms, 'widgets' : widgets }
     cwd = Path('.').resolve()
-    loc = Path(conf).resolve().parent
+    loc = workdir
 
-    settings: Dict[str,Any] = {
-        'main':{'config':conf.name,'stdout':'DEBUG:INFO','stderr':'WARNING:'},
-        'paths': 
-        { 
-        'workspace': os.path.relpath(cwd,loc) ,
-        'modules': ['..','../..'] ,
-        'simulator' : '.',
-        'resources' : '.',
-        'forms' : os.path.relpath(str(loc.joinpath(forms).resolve()),str(loc)),
-        'widgets' : os.path.relpath(str(loc.joinpath(widgets).resolve()),str(loc))
-        }
-        }
+    template_base = Path(str(files("pysca.cli.templates").joinpath('settings.yaml'))).parent
+        
+    templates = [
+                ('settings.yaml',loc ),
+                ]
+    
+    for file,target in templates:
+        try:
+            template = __load_template(template_base,template_file=file)
+            rendered_yaml = yaml.load(template.render(**opts))    
+            __update_yaml(target.joinpath(file),rendered_yaml)
+        except Exception as e:
+            log.warning(f'При создании из шаблона {file} в {target} что-то пошло не так: {e}')
 
     settings = init_env( workdir )
     
-    if opentsdb:
+    if grafana:
         init_grafana(suffix=suffix or cwd.name.lower(),password=password,networks=networks)
         typer.echo(f'Файл {cwd.joinpath('docker-compose.yaml')} обновлен')
         settings.update( { 'opentsdb': { 'host':'localhost','port':4242}} )
-    else:
+    elif 'opentsdb' in settings :
         settings.pop('opentsdb')
                     
     update_config(workdir,settings)
 
 @app.command(help='Запуск проекта')
 def run(
-        dry: bool = typer.Option(False, help='Просто проверка возможности запуска'),
-        simulator: bool = typer.Option(False, help='Запуск в режиме имитации'),
-        asyncio: bool = typer.Option(False, help='Использовать asycio QEventLoop'),
-        workdir: Path = typer.Option(envvar='PYSCAWORKDIR', help='Где расположен конфигурационный файл проекта')):
+    dry: bool = typer.Option(False, help='Просто проверка возможности запуска'),
+    simulator: bool = typer.Option(False, help='Запуск в режиме имитации'),
+    asyncio: bool = typer.Option(False, help='Использовать asycio QEventLoop'),
+    workdir: Path = typer.Option(envvar='PYSCAWORKDIR', help='Где расположен конфигурационный файл проекта')
+):
     settings = init_env(workdir)
     main_conf: dict = settings.get('main', {})
     stdout = main_conf.get('stdout')
@@ -85,6 +159,16 @@ def run(
 
     modules: List[ModuleType] = []  # загруженные модули
     ctx: Dict[str, Any] = {}  # то что доступно для выражений/скриптов
+    
+    from qtpy.QtWidgets import QApplication
+    from qtpy.QtCore import Qt,QObject
+    qApp = QApplication.instance()
+    if not qApp:
+        QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
+        qApp = QApplication([])
+
+    _app.loadResources( )
+    _app.config(config().db)
 
     conf_tsdb: dict = settings.get('opentsdb', {})
     if conf_tsdb and not dry:

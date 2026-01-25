@@ -24,7 +24,8 @@ def add(
         desc['args'] = params 
         
     if test:
-        core_module(name=name,args=params)
+        mod,_ = core_module(name=name,args=params)
+        if not mod: return typer.Exit(1)
         
     settings = { 'modules': [ desc ]}
     update_config(workdir,settings)

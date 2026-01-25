@@ -64,7 +64,7 @@ def update_config( workdir: Path, settings: dict ):
 def __load_config(workdir: Path)->Dict[str,Any]:
     try:
         config()
-        return
+        return {}
     except:
         pass
     
@@ -84,7 +84,7 @@ def __load_config(workdir: Path)->Dict[str,Any]:
                 plugins=paths.get('plugins',['.']),
                 resources=paths.get('resources',['.']),
                 db=main.get('config','default.scada'),
-                logics='.'
+                logics=Path('.')
                 ))
     else:
         init_config(Config())

@@ -51,6 +51,7 @@ class App():
     def _ensure_configured(self):
         if not self._configured:
             self.config(config().db)
+            self.loadResources( )
     
     def __findChild(self,o: Optional['QObject'] , path: list[str] ):
         from qtpy.QtCore import QObject
@@ -124,8 +125,16 @@ class App():
                         
         clock.stop( )
         
-    def config(self,db:Path):
+    def loadResources(self):
         from qtpy.QtCore import QResource 
+        for rcc_dir in config().resources:        
+            rcc_files = glob.glob('*.rcc',root_dir=rcc_dir)
+            for rcc in rcc_files:
+                mod_name = os.path.splitext(rcc)[0]+'_rc'
+                sys.modules[mod_name] = types.ModuleType(mod_name)
+                QResource.registerResource(f'{rcc_dir}/{rcc}')        
+        
+    def config(self,db:Path):
         if not os.path.isabs(db):
             db = db.absolute()
             
@@ -187,14 +196,6 @@ class App():
 
                 p.config(p.properties)
 
-        for rcc_dir in config().resources:        
-            log.debug(f'Поиск ресурсов в {rcc_dir}')
-            rcc_files = glob.glob('*.rcc',root_dir=rcc_dir)
-            for rcc in rcc_files:
-                mod_name = os.path.splitext(rcc)[0]+'_rc'
-                log.debug(f'Загрузка файла ресурсов {rcc_dir}/{rcc}/{mod_name}')
-                sys.modules[mod_name] = types.ModuleType(mod_name)
-                QResource.registerResource(f'{rcc_dir}/{rcc}')
         self._configured = True
 
     def ctxOf(self,target, ctx: Optional[dict] =None) -> Generator[Tuple[str,Any],Any,None]:

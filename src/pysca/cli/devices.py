@@ -1,5 +1,5 @@
 import typer
-from typing import List
+from typing import List,Dict,Any
 from pathlib import Path
 from pysca.cli import args_parse
 from pysca.config import init_env,update_config
@@ -20,8 +20,7 @@ def add(
     _args = args_parse(args)
     
     desc:Dict[str,Any] = { 'name':name,'type':type }
-    if _args: desc.update('args',_args)
+    if _args: desc.update({'args':_args})
     
-    if test:
-        core_device(name,type,_args)   
+    if test and core_device(name,type,_args or {} ) is None: return typer.Exit(1) 
     update_config(workdir,{'devices' : [ desc ]})
