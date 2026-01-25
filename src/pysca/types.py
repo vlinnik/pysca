@@ -10,25 +10,27 @@ from sqlalchemy.orm import Session,Mapped
 
 @dataclass
 class Config():
-    workspace   : Path = field(default_factory=lambda: Path.cwd().resolve() )
+    workdir     : Path = field(default_factory=lambda: Path.cwd().resolve())
+    workspace   : Path = field(default_factory=lambda: Path('.') )
     ui          : Path = field(default_factory=lambda: Path('ui') )
     widgets     : Path = field(default_factory=lambda: Path('widgets') )
-    modules     : List[Path] = field(default_factory=lambda: [Path.cwd().resolve()])
-    plugins     : List[Path] = field(default_factory=lambda: [Path.cwd()]+[Path(p) for p in sys.path] )
-    resources   : List[Path] = field(default_factory=lambda: [Path.cwd()] )
+    modules     : List[Path] = field(default_factory=lambda: [Path('.')])
+    plugins     : List[Path] = field(default_factory=lambda: [Path('.')]+[Path(p) for p in sys.path] )
+    resources   : List[Path] = field(default_factory=lambda: [Path('.')] )
     db          : Path = field(default_factory=lambda: Path('default.scada'))
-    logics      : Path = field(default_factory=lambda: Path.cwd().resolve())
+    logics      : Path = field(default_factory=lambda: Path('.'))
     imported    : List[ModuleType] = field(default_factory=lambda: [])  #загруженные модули
     
     def __post_init__(self):
-        self.workspace = Path(self.workspace).expanduser().absolute()
-        self.ui   = Path(self.ui).expanduser().absolute()
-        self.widgets = Path(self.widgets).expanduser().absolute()
-        self.modules = [Path(p).expanduser().resolve() for p in self.modules]
-        self.plugins = [Path(p).expanduser().resolve() for p in self.plugins]
-        self.db   = Path(self.db).expanduser().absolute()
-        self.resources = [Path(p).expanduser().resolve() for p in self.resources]
-        self.logics = Path(self.logics).expanduser().resolve()
+        self.workdir = Path(self.workdir).expanduser().resolve()
+        self.workspace = self.workdir.joinpath(Path(self.workspace).expanduser()).resolve()
+        self.ui   = self.workdir.joinpath(Path(self.ui).expanduser()).resolve()
+        self.widgets = self.workdir.joinpath(Path(self.widgets).expanduser()).resolve()
+        self.modules = [self.workdir.joinpath(Path(p).expanduser()).resolve() for p in self.modules]
+        self.plugins = [self.workdir.joinpath(Path(p).expanduser()).resolve() for p in self.plugins]
+        self.db   = self.workdir.joinpath(Path(self.db).expanduser()).resolve()
+        self.resources = [self.workdir.joinpath(Path(p).expanduser()).resolve() for p in self.resources]
+        self.logics = self.workspace.joinpath(Path(self.logics).expanduser()).resolve()
 
 #работа с базой конфигурации проекта
 if sqlalchemy_version<'2':

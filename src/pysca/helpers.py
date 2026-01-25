@@ -12,12 +12,15 @@ try:
     if API_NAME == 'PyQt5':
         from PyQt5.QtCore import Q_FLAG as Q_FLAG
         from PyQt5.QtCore import Q_ENUM as Q_ENUM
+        from PyQt5.QtCore import pyqtSignal as Signal,pyqtSlot as Slot
     elif API_NAME == 'PyQt6':
         from PyQt6.QtCore import pyqtEnum as Q_ENUM
         from PyQt6.QtCore import pyqtEnum as Q_FLAG
+        from PyQt6.QtCore import pyqtSignal as Signal,pyqtSlot as Slot
     elif API_NAME == 'PySide6':
         from PySide6.QtCore import QFlag as Q_FLAG 
         from PySide6.QtCore import QEnum as Q_ENUM
+        from PySide6.QtCore import Signal,Slot
 except:
     def __stub(_: Union[IntEnum,IntFlag,type]):
         logger.error(f'Проблема в инициализации Q_FLAG/Q_ENUM, {API_NAME}')

@@ -1,6 +1,17 @@
 from typing import Any,Callable,Dict
 
 class Monitor():
+    """Класс для вычисления/выполнения кода по условиям
+    
+    К переменной(Property) можно можно прикрепить несколько Monitor (Property.monitor = Monitor), после этого 
+    если переменная при изменении вызывает Monitor.__call__(<новое значение>). Где происходит обработка нового 
+    значения. 
+    
+    если <новое значение> is not None то выполняется код из monitorAction иначе monitorNoneAction
+    в контексте выполнения кода доступны переменные value & old_value
+    
+    Один монитор настраивается через конфигурационную базу.
+    """
     def __init__(self,evaluate: Callable[[str,Dict[str, Any]],None],*,monitorAction: str='',monitorNoneAction:str='',comment:str='', subject: Any=None, **kwargs) -> None:
         self._value: Any = None
         self.comment: str = comment

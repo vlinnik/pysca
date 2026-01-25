@@ -37,11 +37,11 @@ def __update_yaml(target_path:Path, target_yaml:Dict[str,Any]):
         yaml.dump(data, f)
 
 def init_grafana(
-            name: str ,
+            suffix: str ,
             networks: str ,
             password: str ,
             ):
-    opts = { 'name':name,'networks':networks,'password':password}
+    opts = { 'suffix':suffix,'networks':networks,'password':password}
     template_base = Path(str(files("pysca.cli.templates.grafana").joinpath('docker-compose.yaml'))).parent
         
     templates = [

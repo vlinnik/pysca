@@ -46,9 +46,9 @@ class Navbar(QMainWindow):
     
 instance = Navbar( )
 
-def append(w: QWidget):
+def append(w: Optional[QWidget]):
     instance.append(w)
             
-def tools(w: QWidget):
+def tools(w: Optional[QWidget]):
     instance.tools(w)
     

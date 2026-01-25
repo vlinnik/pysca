@@ -2,7 +2,7 @@ version: '3'
 services:
   opentsdb:
     image: petergrace/opentsdb-docker
-    container_name: opentsdb-{{ name }}
+    container_name: opentsdb-{{ suffix }}
     ports:
       - "4242:4242"
     networks:
@@ -15,7 +15,7 @@ services:
 
   grafana:
     image: grafana/grafana-oss:10.2.1
-    container_name: grafana-{{ name }}
+    container_name: grafana-{{ suffix }}
     ports:
       - "3000:3000"
     volumes:

@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from qtpy.QtWidgets import QWidget
 
 qApp = None
-_wins: Dict[str,'QWidget']  = { }   #
+_wins: Dict[str,Optional['QWidget'] ]  = { }   #
 
 def __prepare_qt():
     global qApp
@@ -112,6 +112,12 @@ def window(*args,
         template: bool = False,
         **kwargs
         )->Tuple[str,Union[Type,'QWidget',None]]:
+    """Создать окно или класс окна (template=True) и вернуть имя переменной, по которой
+    доступно это окно/класс в сценариях
+
+    Returns:
+        Tuple[str,Union[Type,'QWidget',None]]: имя символа и новый тип/экземпляр
+    """
     global _wins
     __prepare_qt( )
         
@@ -138,11 +144,12 @@ def window(*args,
     else:
         base = resolve_class(config().ui.joinpath(ui),mods)
         win = user_window(config().ui.joinpath(ui),base)
+        _wins[name] = win
             
     return name,win
 
 def view(*_,
-        cls: str,
+        template: str,
         name: Optional[str] = None,
         parent: Optional[str] = None,
         title: Optional[str] = None,
@@ -155,25 +162,25 @@ def view(*_,
     __prepare_qt( )
     
     win:Union['QWidget',None] = None
-    p = _wins.get(parent,None)
-    w = _wins.get(cls,None)
+    p = _wins.get(parent,None) if parent else None
+    w = _wins.get(template,None)
     try:    
         if w is not None and isinstance(w,type):
             win = w(parent=p,**args)
         else:
             import qtpy.QtWidgets as qtwidgets
-            w = getattr(qtwidgets,cls,None)
+            w = getattr(qtwidgets,template,None)
             if w: 
                 win = w(parent=None)
             else:
-                match cls:
+                match template:
                     case 'browser':
                         from qtpy.QtWebEngineWidgets import QWebEngineView
                         from qtpy.QtCore import QUrl
                         win = QWebEngineView()
                         if data: win.setUrl(QUrl(data))
     except Exception as e:
-        log.error(f'При создании окна {view}[{cls}] что-то пошло не так: {e}')
+        log.error(f'При создании окна {view}[{template}] что-то пошло не так: {e}')
         
     if win: 
         if show: win.show( )

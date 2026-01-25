@@ -1,21 +1,21 @@
+import socket
+from pysca import log
 from pysca.bindable import Expressions
-from .journal import MetricJournal, JournalEvent
-from .alerts import AlertsJournal, Alert
-from .__logging import console
+from pysca.journal import MetricJournal, JournalEvent
+from pysca.alerts import AlertsJournal, Alert
 from typing import List
 from opentsdb import TSDBClient, Gauge
 from opentsdb.metrics import Metric
-import socket
-
-_log = console('opentsdb')
+from typing import Optional,cast
 
 class OpenTSDBJournal(MetricJournal):
-    def __init__(self,host:str='127.0.0.1',port=4242, parent = None):
+    def __init__(self,host:str='127.0.0.1',port:int=4242, parent = None,**kwargs):
         super().__init__( parent )
         self._metrics: List[str] = []
-        self._tsdb = TSDBClient(host, port, static_tags={'host': socket.gethostname(), 'app': 'pysca-hmi'})
+        self._tsdb = TSDBClient(host, port, static_tags={'host': socket.gethostname(), 'app': 'pysca'})
+        self._args = dict(host=host,port=port,**kwargs)
 
-    def metric(self,item: str)->Metric|None:
+    def metric(self,item: str)->Optional[Metric]:
         try:
             return getattr(self._tsdb, item)
         except AttributeError:
@@ -25,6 +25,7 @@ class OpenTSDBJournal(MetricJournal):
         try:
             metric = self.metric(event.item)
             if metric is None: raise RuntimeError(f'метрика {event.item} не найдена')
+            metric = cast(Gauge,metric)
             tag_values = []
             for tag in metric.tag_names:
                 if tag in event.tags:
@@ -32,11 +33,10 @@ class OpenTSDBJournal(MetricJournal):
                 else:
                     tag_values.append(None)
             metric.tags(*tag_values)
-
             if event.value is not None:
                 metric.set(event.value)
         except Exception as e:
-            _log.error(e)
+            log.error(e)
             
     def register(self, id: str, metric: str):
         if hasattr(self._tsdb, id):
@@ -53,17 +53,20 @@ class OpenTSDBJournal(MetricJournal):
     def flush(self):
         for id in self._metrics:
             try:
-                metric: Metric | None = self.metric(id)
+                metric: Optional[Metric] = self.metric(id)
                 if metric is not None:
+                    metric = cast(Gauge,metric)
                     metric.tags(JournalEvent.Sources.SOURCE_SYSTEM, id)
                     metric.set(metric.value)
             except Exception as e:
-                pass
+                log.warning(f'Что-то пошло не так при сбросе метрики {id}: {e}')
+    def __repr__(self):
+        return f"OpenTSDBJournal({','.join(f'{key}={val}' for key,val in self._args.items())})"
 
 class OpenTSDBAlerts(AlertsJournal):
     def __init__(self, ctx: Expressions, host:str='127.0.0.1',port=3000, parent = None):
         super().__init__( ctx, parent )
-        self._tsdb = TSDBClient(host, port, static_tags={'host': socket.gethostname(), 'app': 'pysca-hmi'})
+        self._tsdb = TSDBClient(host, port, static_tags={'host': socket.gethostname(), 'app': 'pysca'})
 
     def metric(self,item: str)->Metric|None:
         try:
@@ -87,7 +90,7 @@ class OpenTSDBAlerts(AlertsJournal):
                 metric.tags(*tag_values)
                 metric.set(alert.value)
         except Exception as e:
-            _log.error(e)
+            log.error(e)
     
     def register(self, id: str, metric: str):
         if hasattr(self._tsdb, id):

@@ -1,18 +1,27 @@
 import typer
 from typing import List
-from pysca.cli import message
+from pathlib import Path
+from pysca.cli import args_parse
+from pysca.config import init_env,update_config
 from pysca.cli.core.devices import device as core_device
 
-app = typer.Typer()
+app = typer.Typer(name='devices',help='Настройка устройств ввода-вывода')
 
 @app.command(help='Настройка устройства ввода-вывода')
-def device( ctx: typer.Context, name: str = typer.Argument(...,help='Имя устройства') ,
-        type: str = typer.Option(...,help='Драйвер устройства'), 
-        args: List[str] = typer.Option(None,'--arg','--args',help='Параметры устройства в виде param=value')):
-
-    _args = { }
-    for x in args or []:
-        key,value = x.split('=',1)
-        _args[key]=value
-        
-    core_device(name,type,_args)    
+def add( 
+    ctx: typer.Context, 
+    name: str = typer.Argument(...,help='Имя устройства') ,
+    type: str = typer.Option(...,help='Драйвер устройства'),
+    test: bool = typer.Option(False,help='Попробовать загрузить'), 
+    args: List[str] = typer.Option(None,'--arg','--args',help='Параметры устройства в виде param=value'),
+    workdir: Path = typer.Option(envvar='PYSCAWORKDIR',help='Где расположен конфигурационный файл проекта'),
+):
+    init_env(workdir)
+    _args = args_parse(args)
+    
+    desc:Dict[str,Any] = { 'name':name,'type':type }
+    if _args: desc.update('args',_args)
+    
+    if test:
+        core_device(name,type,_args)   
+    update_config(workdir,{'devices' : [ desc ]})

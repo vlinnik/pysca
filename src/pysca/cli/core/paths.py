@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional,List
 from pysca.config import config
 
-def paths( 
+def _paths( 
         *args,
         modules: Optional[List[Path]] = None,
         plugins: Optional[List[Path]] = None,

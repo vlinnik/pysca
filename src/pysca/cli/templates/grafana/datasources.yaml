@@ -4,7 +4,7 @@ datasources:
   - name: OpenTSDB
     type: opentsdb
     access: proxy
-    url: http://opentsdb-{{ name }}:4242
+    url: http://opentsdb-{{ suffix }}:4242
     isDefault: true
     jsonData:
       tsdbResolution: 1

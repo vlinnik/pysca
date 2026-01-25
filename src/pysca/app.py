@@ -103,6 +103,7 @@ class App():
             log.error('Запуск pysca.app возможен только после создания QApplication')
             return
         if not use_asyncio:
+            if self.journal: self.journal.start( )
             for d in self.devices.values():
                 d.start( )
             qApp.exec( )
