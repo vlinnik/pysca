@@ -390,7 +390,10 @@ class App():
                 else:
                     w = t( )
             elif isinstance(t,str) or isinstance(t,Path):
-                t = str(config().ui.joinpath(t))
+                if config().ui.joinpath(t).exists():
+                    t = str(config().ui.joinpath(t))
+                else:
+                    t = str(t)
                 log.debug('Загрузка окна из UI-файла %s' % (t))
                 if not os.path.exists( t ):
                     log.error(f'Файл {os.path.abspath(t)} не существует')

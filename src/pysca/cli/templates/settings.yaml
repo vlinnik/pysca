@@ -12,3 +12,4 @@ paths:                      # настройка путей проекта
   resources: .              # где искать файлы ресурсов относительно workdir
   forms: {{ forms }}        # где формы лежат. по умолчанию в ${workdir}/ui
   widgets: {{ widgets}}     # где widget-ы лежат. по умолчанию в ${workdir}/widgets
+  logic: .

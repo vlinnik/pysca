@@ -23,7 +23,7 @@ def add(
 ):
     init_env(workdir)
     
-    desc:Dict[str,Any] = { 'name':name }
+    desc:Dict[str,Any] = { 'name':name,'ui': ui }
     if title: desc.update({'title':title})
     if module: desc.update({'module':module})
     if template: desc.update({'template':template})

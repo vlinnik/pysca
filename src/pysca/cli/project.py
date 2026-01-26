@@ -217,6 +217,7 @@ def run(
         ctx.update({'navbar': navbar(**conf_nav)})
 
     if not dry:
+        ctx.update({'app':_app})
         _app.context().update(ctx)
         for m in modules:
             if hasattr(m, 'on_start'):
