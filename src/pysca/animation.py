@@ -25,12 +25,12 @@ class pyAnimation(QLabel):
     def __init__(self, parent: Optional[QWidget]=None, *args, **kwargs):
         super().__init__(parent,*args, **kwargs)
         self._hint = 0
-        self._running = False
-        self._movie = None
-        self._touched = False
-        self._lazy = False
+        self._running = False                           # анимация включена
+        self._movie = None                              # файл анимации
+        self._touched = False                           # состояние нажато/нет
+        self._lazy = False                              # когда нет возможности прямо сейчас анимацию показать (не загружена еще)
         self._source = QUrl( )
-        self._sequence:Optional[Iterator[int]] = None
+        self._sequence:Optional[Iterator[int]] = None   # генератор возвращает номер кадра для отображения
         self.setSource(QUrl("qrc:///PYSCA/movie.gif"))
 
     @Slot(bool)
@@ -48,7 +48,7 @@ class pyAnimation(QLabel):
         
     @Property(bool,fset=setRunning)
     def running(self) -> bool:
-        if not self._movie: return False
+        # if not self._movie: return False
         return self._running
         
     @Slot(PlaybackHint)
@@ -74,18 +74,19 @@ class pyAnimation(QLabel):
         if self._movie:
             self._movie.frameChanged.disconnect()
             
-        self._movie = QMovie( file )
-        self._movie.setCacheMode(QMovie.CacheMode.CacheAll)
-        self._movie.frameChanged.connect( self._frameChanged )
-        
-        self.resize(_preview.size())
-        if self._movie.isValid():
-            self.setMovie(self._movie)
-            self._movie.jumpToNextFrame()
-        else:
-            self.setPixmap(_preview)
+        # self._movie = QMovie( file )
+        # self._movie.setCacheMode(QMovie.CacheMode.CacheAll)
+        # self._movie.frameChanged.connect( self._frameChanged )
+
+        if _preview.size().height()>0 and _preview.size().width()>0:
+            self.resize(_preview.size())
+        # if self._movie.isValid():
+        #     self.setMovie(self._movie)
+        #     self._movie.jumpToNextFrame()
+        # else:
+        self.setPixmap(_preview)
             
-        self._preload( )
+        self._preload( file )
 
     @Property(QUrl,fset=setSource)            
     def source(self)->QUrl:
@@ -108,24 +109,24 @@ class pyAnimation(QLabel):
         self.touched.emit( self._touched  )
 
     def _preloaded(self,frame:int = -1):
-        if self._cache is None or self._movie is None: return
+        if self._cache is None: return
         if self._cache and self._cache.frameCount()>0:
             self._cache.stop( )
             self._cache.finished.disconnect( )
             self._cache.frameChanged.disconnect( )
-            self._movie.deleteLater( )
+            if self._movie is not None: self._movie.deleteLater( )
             self._cache.jumpToFrame(0 if not self.is_set(PlaybackHint.Reversed) else self._cache.frameCount()-1)
             self._movie = self._cache
             self._movie.frameChanged.connect( self._frameChanged )
             self._movie.setPaused(True)
             self.setMovie(self._movie)
-            self.setRunning(self._lazy)
+            if self._running: self.setRunning(self._running)
             self._cache = None
                 
-    def _preload(self):
-        if not self._movie:
-            return
-        self._cache = QMovie(self._movie.fileName( ))
+    def _preload(self,file:str):
+        # if not self._movie:
+        #     return
+        self._cache = QMovie(file)
         self._cache.setCacheMode(QMovie.CacheMode.CacheAll)
         self._cache.start( )
         self._cache.finished.connect( self._preloaded )        

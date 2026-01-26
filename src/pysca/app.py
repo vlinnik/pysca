@@ -326,6 +326,7 @@ class App():
                 
                 if code in self.ctx and not rd_only and not animation.prop.startswith('__effect_'):
                     ani = QObjectPropertyBinding.create( target, animation.prop, self.ctx[code])
+                    expression = self.ctx[code]
                     self.animations.append(ani)
                     if ani.dynamic:
                         if animation.objectID not in helpers:
@@ -342,6 +343,11 @@ class App():
                         
                     self.animations.append( ani )
                     ani.update(expression.value)
+                if ani:
+                    expression.on_good_changed( ani.quality )
+                    ani.on_destroy( lambda x: expression.on_good_changed(x.quality,remove=True))
+                    pass
+                    
             except Exception as e:
                 log.error('ошибка при настройки анимации: объект(%s/%s), свойство(%s), выражение(%s): %s' % (animation.objectID,target.objectName(),animation.prop,animation.data,e) )
             

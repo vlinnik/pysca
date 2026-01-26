@@ -69,12 +69,14 @@ class Property(Generic[T]):
         self._filter:Filter|None = None  #обработка значения (если необходима)
         self.__binds = []
         self._eu_type = t   #< тип переменной в представлении с нашей стороны (для преобразований при записи)
-        self._value: Union[T,None] = init_val
+        self._value: Union[T,None] = init_val or t()
         self._iec: Any = None
         self._read = read
         self._write = write
         self._iec_write:Callable[[Any],None]|None = None
         self._monitors: List[Monitor] = [ ]
+        self._good: bool = True
+        self._good_changed: List[Callable[[bool],None]] = []
         self.name: str|None = None
         self.source:str|None = None
         self.address:str|None = None
@@ -91,6 +93,27 @@ class Property(Generic[T]):
                     self.filter.config(a,attr[a])
         except AttributeError as e:
             pass
+    
+    #Переменная имеет осознанное значение
+    @property
+    def good(self)->bool:
+        return self._good
+    
+    @good.setter
+    def good(self,good: bool):
+        if self._good==good:
+            return
+        self._good = good
+        for f in self._good_changed:
+            f(good)
+        
+    def on_good_changed(self,callback:Callable[[bool],None],*_,remove: bool = False):
+        if not remove:
+            callback(self.good)
+            self._good_changed.append(callback)
+        else:
+            self._good_changed = list(filter( lambda x: id(x)==id(callback), self._good_changed ))
+        pass
         
     @property
     def monitor(self)->None:
@@ -150,11 +173,15 @@ class Property(Generic[T]):
         if self._value!=value:
             if self._eu_type!=type(value) and value is not None and self._eu_type is not NoneType:
                 try:
+                    self.good = True
                     self._value = self._eu_type(value)
                 except:
                     raise RuntimeWarning(f'cannot convert new value "{value}" to {self._eu_type.__name__}({self.name})')
             else:
-                self._value = value
+                if value is not None: 
+                    self.good = True
+                    self._value = value 
+                else: self.good = False
             if self._write:
                 self._write( self._value)
             for b in self.__binds:
@@ -167,7 +194,9 @@ class Property(Generic[T]):
                     m(self._value,user=not remote)
                 except Exception as e:
                     _log.warning(f'Проблема мониторинга значения: {e}, монитор {m}')
-                
+        else:
+            self.good = value is not None
+                    
         if self._iec_write and not remote:
             self._iec_write(self.raw)
 
@@ -178,7 +207,7 @@ class Property(Generic[T]):
         return self.read()
 
     def __repr__(self):
-        return '%s(%s)' % (type(self).__name__, self._value )
+        return '%s(%s)' % (type(self).__name__, self._value)
 
     def iec(self)->Any:
         if self._filter is not None:
@@ -223,11 +252,12 @@ class Expressions(dict):
     class Expression(Property,dict):
         def __init__(self,t:Type[T], ctx, source: str, locals = None) -> None:
             super().__init__( t )
-            self.value = None
+            self.value = t()
             self.ctx = ctx
             self.source:str = source
             self.locals = locals
             self.crossreferences:List[str] = []
+            self._references: List[Property] = []   #список переменных, от которых зависит выражение
 
         def isDependsOn(self,key:str):
             return key in self.crossreferences
@@ -235,10 +265,16 @@ class Expressions(dict):
         def reference( self, key: str, prop: Property):
             self.crossreferences.append(key)
             prop.bind(self.evaluate,True)
-
+            self._references.append(prop)
+            prop.on_good_changed( self.on_update_good )
+            
+        def on_update_good(self,good: bool ):     #кто-то из _references изменил свой good
+            self.good = good and all( [ x.good for x in self._references] ) # для оптимизации если good==False all не будет проверяться
+            
         def evaluate(self,*_):
             ret = eval( self.source, self )
             self.write( ret )
+            self.on_update_good( True )
             return ret
         
         def __getitem__(self, __key):

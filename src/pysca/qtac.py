@@ -1,6 +1,6 @@
 from qtpy.QtCore import QObject,QMetaObject,QEvent,QDynamicPropertyChangeEvent,QMetaProperty
 from qtpy.QtWidgets import QGraphicsBlurEffect,QAbstractButton,QLineEdit
-from typing import Callable,cast,Optional,Dict,Any
+from typing import Callable,cast,Optional,Dict,Any,List
 from .flexeffect import FlexEffect
 from .bindable import Property
 
@@ -71,24 +71,29 @@ class QObjectPropertyBinding():
             self.clean = None
             
         self.obj.destroyed.connect(self.cleanup)
+        self._on_destroy: List[Callable[['QObjectPropertyBinding'],None]] = [ ]
+        
+    def on_destroy(self,callback: Callable[['QObjectPropertyBinding'],None]):
+        self._on_destroy.append(callback)
                 
     def update(self,value):
         """Изменить свойство 
 
         Args:
             value (Any): новое значения для свойства
-        """
-        if self._isWidget:
-            effect:FlexEffect = self.obj.property('_effect')
-            if effect:
-                if value is None: effect.push( QGraphicsBlurEffect(self.obj)  )
-                if value is not None: effect.pop()
-            
+        """            
         if self.mp.isValid():
             self.mp.write(self.obj,value)
         elif self.dynamic:
             self.obj.setProperty(self.prop,value)
-        
+    
+    def quality(self,good: bool):
+        if self._isWidget:
+            effect:FlexEffect = self.obj.property('_effect')
+            if effect:
+                if not good: effect.push( QGraphicsBlurEffect(self.obj)  )
+                elif good: effect.pop()
+                
     def cleanup(self):
         """После вызова cleanup QObjectPropertyBinder-instance можно удалять. 
         """
@@ -102,6 +107,8 @@ class QObjectPropertyBinding():
         
         if self.clean:
             self.clean(self.update)
+            
+        for d in self._on_destroy: d( self )    #предупреждаем что сейчас будем удалены
             
         del self.obj
         del self.mp
