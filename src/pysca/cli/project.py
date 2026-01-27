@@ -182,6 +182,7 @@ def run(
             mod, instance = core_modules(**mod_params)
             if mod:
                 modules.append(mod)
+                ctx[mod_params.get('alias', mod_params['name'])] = mod
             if instance:
                 ctx[mod_params.get('alias', mod_params['name'])] = instance
 

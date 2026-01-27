@@ -71,7 +71,7 @@ class App():
         try:
             exec( code, self._ , dict(self.ctx,**ctx) )
         except Exception as e:
-            log.error('error in exec-code: %s (%s)',code,e)
+            log.error(f'error in "{code}" - {e}')
     
     def eval(self,code: str, ctx:Optional[dict]=None )->Any:
         return eval( code, self.ctx,  ctx if ctx else self._  )
