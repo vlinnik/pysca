@@ -191,7 +191,7 @@ class App():
                 rx = re.compile('^monitor.*')
                 if any(rx.search(key) for key in p.properties):
                     from .monitor import Monitor
-                    p.monitor = Monitor( self.exec, comment=var.comment,subject=p,**p.properties )
+                    p.monitor = Monitor( self.exec, self.eval , comment=var.comment,subject=p,**p.properties )
                     pass
 
                 p.config(p.properties)

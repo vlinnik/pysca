@@ -12,12 +12,15 @@ class Monitor():
     
     Один монитор настраивается через конфигурационную базу.
     """
-    def __init__(self,evaluate: Callable[[str,Dict[str, Any]],None],*,monitorAction: str='',monitorNoneAction:str='',comment:str='', subject: Any=None, **kwargs) -> None:
+    def __init__(self,execute: Callable[[str,Dict[str, Any]],None],evaluate: Callable[[str,Dict[str, Any]],Any],*,monitorAction: str='',monitorNoneAction:str='',monitorCondition:str='',monitorConditionalAction:str='',comment:str='', subject: Any=None, **kwargs) -> None:
         self._value: Any = None
         self.comment: str = comment
         self.action:str = monitorAction
         self.invalidAction:str = monitorNoneAction
-        self.exec = evaluate
+        self.condition: str = monitorCondition
+        self.conditionAction: str = monitorConditionalAction
+        self.exec = execute
+        self.eval = evaluate
         self.user_ctx = kwargs
         self.subject = subject
     
@@ -31,3 +34,5 @@ class Monitor():
             self.exec(self.action,ctx)
         if self._value!=value:
             self._value = value
+            if self.condition and self.eval(self.condition,ctx)==True:
+                self.exec(self.conditionAction,ctx)
