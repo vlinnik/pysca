@@ -269,7 +269,7 @@ def custom_widget_plugin(widget: Union[str,type], name:str,is_container:bool = F
     
     return __CUSTOM_WIDGET_PLUGIN
 
-def user_window( ui_file: str, base: type = None ): 
+def user_window( ui_file: str, base: Optional[type] = None ): 
     """Использование пользовательских окон, получаемых из ui-файлов. 
     
     Пример: Однотипные элементы (конвейеры) имеют одинаковое окно для настроек/управления. Можно создать conveyor_dialog.ui.
@@ -296,7 +296,7 @@ def user_window( ui_file: str, base: type = None ):
     class __UserWindow(base):
         def __init__(self,parent: Optional[QWidget] = None,*args,**kwargs):
             from pysca import app
-            super().__init__(parent,*args,**kwargs)
+            super().__init__(parent,*args)
             uic.loadUi(ui_file,self)
             for key,item in kwargs.items():
                 self.setProperty(key,item)

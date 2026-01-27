@@ -27,7 +27,7 @@ def __prepare_qt():
     pysca_rcc( )
 
 
-def resolve_class(ui_path:str,mods:List[ModuleType]):
+def resolve_class(ui_path:str,mods:List[ModuleType])->Optional[type]:
     if len(mods)>0:
         tree = ET.parse(ui_path)
         root = tree.getroot()
@@ -78,6 +78,31 @@ def load_windows(pages: List[Path],modules: List[ModuleType],globs: Dict[str,Any
         _app.context().update( { w.objectName():w} )
         wins.append(w)
     return wins
+
+def set_properties(win: 'QWidget',**args):
+    for key in args:
+        was = win.property(key)
+        raw = args[key]
+        try:
+            match type(was).__name__:
+                case 'str': val = raw
+                case 'bool': val = raw.lower() in ('true','y','on','1')
+                case 'QSize': 
+                    from qtpy.QtCore import QSize
+                    x,y = raw.split('x',1)
+                    val = QSize(int(x),int(y))
+                case 'QIcon':
+                    from qtpy.QtGui import QIcon
+                    val = QIcon.fromTheme(raw) if QIcon.hasThemeIcon(raw) else QIcon(raw)
+                case 'QUrl':
+                    from qtpy.QtCore import QUrl
+                    val = QUrl(raw)
+                case 'NoneType': 
+                    val = raw
+                case _: val = type(was)(raw)
+            win.setProperty(key,val)
+        except Exception as e:
+            log.warning(f'Не получилось {win.objectName()}.{key}={raw} - {e}')
         
 def navbar(*args,
         name: Optional[str] = None,
@@ -103,13 +128,16 @@ def navbar(*args,
     if not dry: navbar.instance.show()
     return navbar.instance
 
-def window(*args,
+def window(*_,
         ui: Path,
         name: str,
+        parent: Optional[str]=None,
         title: Optional[str] = None,
         module: Optional[str] = None,
         show: bool = False,
         template: bool = False,
+        args: Dict[str,Any] = { },
+        properties: Dict[str,Any] = { },
         **kwargs
         )->Tuple[str,Union[Type,'QWidget',None]]:
     """Создать окно или класс окна (template=True) и вернуть имя переменной, по которой
@@ -124,13 +152,14 @@ def window(*args,
     mods = load_modules([module]) if module else [] 
     if not template:
         wins = load_windows([ui],modules=mods)
+        p = _wins.get(parent,None) if parent else None
         if not wins or not wins[0]:
             return name,None
         win = wins[0]
-
+        if p: win.setParent(p,win.windowFlags())
         setup = getattr(win, "setupUi", None) 
         try:
-            if callable(setup): setup()
+            if callable(setup): setup(**args)
         except Exception as e:
             log.error(f'Ошибка инициализации окна {name}.setupUi(): {e}')                                         
         
@@ -139,12 +168,14 @@ def window(*args,
             
         if show:
             win.show( )
+            
+        set_properties(win,**properties)
         _wins[name] = win
         return name,win
     else:
-        base = resolve_class(config().ui.joinpath(ui),mods)
-        win = user_window(config().ui.joinpath(ui),base)
-        _wins[name] = win
+        base = resolve_class(str(config().ui.joinpath(ui)),mods)
+        win = user_window(str(config().ui.joinpath(ui)),base)
+        _wins[name] = win # type: ignore
             
     return name,win
 
@@ -155,6 +186,7 @@ def view(*_,
         title: Optional[str] = None,
         show: bool = False,
         args: Dict[str,Any] = {},
+        properties: Dict[str,Any] = { },
         **kwargs
         )->Tuple[str,Union['QWidget',None]]:
     global _wins
@@ -170,13 +202,13 @@ def view(*_,
             import qtpy.QtWidgets as qtwidgets
             w = getattr(qtwidgets,template,None)
             if w: 
-                win = w(parent=_wins.get(parent,None))
+                win = w(parent=p)
             else:
                 match template:
                     case 'browser':
                         from qtpy.QtWebEngineWidgets import QWebEngineView
                         from qtpy.QtCore import QUrl
-                        win = QWebEngineView(parent=_wins.get(parent,None))
+                        win = QWebEngineView(parent=p)
                     case _:
                         log.warning(f'Класс окна {template} не поддерживается')
     except Exception as e:
@@ -185,30 +217,13 @@ def view(*_,
     if win: 
         if show: win.show( )
         if title: win.setWindowTitle(title)
-        if name: win.setObjectName(name)
-        for key in args:
-            was = win.property(key)
-            raw = args[key]
-            try:
-                match type(was).__name__:
-                    case 'str': val = raw
-                    case 'bool': val = raw.lower() in ('true','y','on','1')
-                    case 'QSize': 
-                        from qtpy.QtCore import QSize
-                        x,y = raw.split('x',1)
-                        val = QSize(int(x),int(y))
-                    case 'QIcon':
-                        from qtpy.QtGui import QIcon
-                        val = QIcon(raw)
-                    case 'QUrl':
-                        from qtpy.QtCore import QUrl
-                        val = QUrl(raw)
-                    case 'NoneType': 
-                        val = raw
-                    case _: val = type(was)(raw)
-                win.setProperty(key,val)
-            except Exception as e:
-                log.warning(f'Не получилось {name}.{key}={raw} - {e}')
+        if name: win.setObjectName(name) 
+        setup = getattr(win, "setupUi", None) 
+        try:
+            if callable(setup): setup(**args)
+        except Exception as e:
+            log.error(f'Ошибка инициализации окна {name}.setupUi: {e}')                                         
+        set_properties(win,**properties)
 
     if name: _wins[name] = win
-    return name,win
+    return name or '',win

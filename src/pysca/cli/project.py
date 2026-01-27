@@ -167,13 +167,13 @@ def run(
         QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
         qApp = QApplication([])
 
-    _app.loadResources( )
-    _app.config(config().db)
-
     conf_tsdb: dict = settings.get('opentsdb', {})
     if conf_tsdb and not dry:
         from pysca.opentsdb import OpenTSDBJournal
         _app.journal = OpenTSDBJournal(**conf_tsdb)
+
+    _app.loadResources( )
+    _app.config(config().db)
 
     conf_mods: List[Any] = settings.get('modules', [])
     if conf_mods and not dry:
