@@ -6,7 +6,6 @@ from types import ModuleType
 from typing import List,Type,Optional,Dict,Any,Tuple,Union,TYPE_CHECKING,cast
 from pysca import log
 from pysca.config import config
-from pysca.helpers import user_window
 
 if TYPE_CHECKING:
     from qtpy.QtWidgets import QWidget
@@ -173,6 +172,7 @@ def window(*_,
         _wins[name] = win
         return name,win
     else:
+        from pysca.helpers import user_window
         base = resolve_class(str(config().ui.joinpath(ui)),mods)
         win = user_window(str(config().ui.joinpath(ui)),base)
         _wins[name] = win # type: ignore

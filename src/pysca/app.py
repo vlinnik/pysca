@@ -210,7 +210,7 @@ class App():
             Generator[Tuple[str,Any],Any,None]: _description_
         """
         for key in target.dynamicPropertyNames():
-            yield bytearray(key).decode(),target.property(key)
+            yield bytearray(key).decode(),target.property(key.data().decode())
         if ctx is not None:
             for key in ctx:
                 yield key,ctx[key]

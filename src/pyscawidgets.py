@@ -2,7 +2,6 @@
 import os
 from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import QWidget
-from qtpy.QtDesigner import QPyDesignerCustomWidgetPlugin
 from pysca import pysca_rcc,log; pysca_rcc()
 from pysca.helpers import user_widgets
 

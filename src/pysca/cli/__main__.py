@@ -20,6 +20,7 @@ app.add_typer(wm)
 def main(
     ctx: typer.Context,
     version: bool = typer.Option(False,'--version',help='Показать версию'),
+    qtapi: str = typer.Option(None,help='Выбор используемой привязки pyqt5/6/pyside2/pyside6',envvar='QT_API'),
     workdir: Path = typer.Option(None,'-w','--workdir',dir_okay=True,resolve_path=True,help='Рабочий каталог проекта'),
 ):
     ctx.ensure_object(dict)
@@ -31,6 +32,9 @@ def main(
 
     if workdir:
         os.environ['PYSCAWORKDIR'] = str(workdir)
+    
+    if qtapi:
+        os.environ['QT_API'] = qtapi
                     
 def entry():
     app()

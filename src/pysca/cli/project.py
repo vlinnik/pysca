@@ -133,6 +133,7 @@ def run(
     main_conf: dict = settings.get('main', {})
     stdout = main_conf.get('stdout')
     stderr = main_conf.get('stderr')
+    if 'qtapi' in main_conf: os.environ['QT_API'] = main_conf.get('qtapi','')
     if stdout or stderr:
         log.remove()
     if stdout:

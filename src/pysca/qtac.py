@@ -147,7 +147,9 @@ class QObjectSignalHandler():
     """
     def __init__(self,obj: QObject, signal: str, code: str , globals: Callable[[],dict], ctx = None,this = None,user_ctx:Dict[str,Any] = { },**kwargs) -> None:
         mo = obj.metaObject()
-        ms = mo.method( mo.indexOfSignal(QMetaObject.normalizedSignature(signal) ) )
+        norm_signature = QMetaObject.normalizedSignature(signal).data().decode()
+        index =  mo.indexOfSignal( norm_signature )
+        ms = mo.method( index )
         self.code = code
         self.obj = obj           #тот чье событие обслуживается
         self.ctx = ctx           #все переменнные (ввода-вывода)
