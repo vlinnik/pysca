@@ -5,6 +5,7 @@ import yaml
 from typing import Optional,Dict,Any
 from pathlib import Path
 from pysca.types import Config
+from ruamel.yaml.comments import CommentedMap,CommentedSeq
 
 _config: Optional[Config] = None
 _config_origin: Optional[str] = None
@@ -29,21 +30,38 @@ def config() -> Config:
         raise RuntimeError("Сначала  необходимо инициализировать настройки")
     return _config
 
-def __merge_config(base: dict, new: dict):
+def merge_config(base: Dict[str,Any], new: dict):
     if base is None: return new
     for key, value in new.items():
         if (
             key in base
-            and isinstance(base.get(key), dict)
+            and (isinstance(base[key], dict) or isinstance(base[key],CommentedMap))
             and isinstance(value, dict)
         ):
-            __merge_config(base.get(key), value)
+            merge_config(base[key], value)
         elif (
             key in base 
-            and isinstance(base.get(key),list)
+            and (isinstance(base[key],list) or isinstance(base[key],CommentedSeq))
+            and isinstance(value,list)
+            
+        ):
+            for item in value:
+                if isinstance(item,dict):
+                    first_key,first_value = next(iter(item.items()))
+                    ref = next((lookup for lookup in base[key] if lookup.get(first_key) == first_value), None)
+                    if ref is not None:
+                        merge_config(ref,item)
+                    else:
+                        base[key].append(item)
+                elif item not in base[key]:
+                    base[key].append(item)
+        elif (
+            key in base 
+            and isinstance(base[key],list)
             and isinstance(value,list)
         ):
-            base[key]+= value
+            value = list(set(base[key]+value))
+            base[key] = value
         else:
             base[key] = value
 
@@ -56,7 +74,7 @@ def update_config( workdir: Path, settings: dict ):
     if Path(cfg).exists():
         with open(cfg,'r') as file:
             before = yaml.load(file)
-        __merge_config(before,settings)
+        merge_config(before,settings)
                         
     with open(cfg,'w+') as file:
         yaml.dump(before or settings,file)

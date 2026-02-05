@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional,List
 from pysca.config import init_env
 
-app = typer.Typer(name='tool',help='Запуск утилит (designer etc.)')
+app = typer.Typer(name='tool',help='Запуск утилит (designer etc.)',no_args_is_help=True)
 
 @app.command(help='Запуск qt-designer')
 def designer(ctx: typer.Context,

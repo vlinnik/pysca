@@ -5,7 +5,7 @@ from pysca.cli import args_parse
 from pysca.config import init_env,update_config
 from pysca.cli.core.devices import device as core_device
 
-app = typer.Typer(name='devices',help='Настройка устройств ввода-вывода')
+app = typer.Typer(name='devices',help='Настройка устройств ввода-вывода',no_args_is_help=True)
 
 @app.command(help='Настройка устройства ввода-вывода')
 def add( 

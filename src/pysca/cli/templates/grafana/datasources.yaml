@@ -9,16 +9,3 @@ datasources:
     jsonData:
       tsdbResolution: 1
       tsdbVersion: 1
-
-  # - name: InfluxDB
-  #   type: influxdb
-  #   access: proxy
-  #   url: http://influxdb:8086
-  #   isDefault: false
-  #   jsonData:
-  #     version: Flux
-  #     organization: vlinnik
-  #     defaultBucket: default_bucket
-  #     tlsSkipVerify: true
-  #   secureJsonData:
-  #     token: influxdb_admin_token_2025

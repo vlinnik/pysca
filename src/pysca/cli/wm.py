@@ -1,15 +1,16 @@
+import os
 import typer
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List,Type,Dict,Optional,Any,TYPE_CHECKING
-from pysca.config import init_env,update_config
+from pysca.config import init_env,update_config,config
 from pysca.cli import args_parse
 from pysca.cli.core.wm import navbar as core_navbar, window as core_window, view as core_view
 
 if TYPE_CHECKING:
     from qtpy.QtWidgets import QWidget
 
-app = typer.Typer(name='window',help='Настройка окон и шаблонов окон',chain=True)
+app = typer.Typer(name='window',help='Настройка окон и шаблонов окон',chain=True,no_args_is_help=True)
 
 @app.command( help='Настройка/создание окна или шаблона по ui файлу' )
 def add(
@@ -21,15 +22,15 @@ def add(
     template: bool = typer.Option(False, help="Создать шаблон окна без создания экземпляра"),
     workdir: Path = typer.Option(envvar='PYSCAWORKDIR',help='Где расположен конфигурационный файл проекта'),
 ):
-    init_env(workdir)
+    conf = init_env(workdir)
     
-    desc:Dict[str,Any] = { 'name':name,'ui': ui }
+    desc:Dict[str,Any] = { 'name':name,'ui': os.path.relpath(ui,config().ui),'show':show}
     if title: desc.update({'title':title})
     if module: desc.update({'module':module})
     if template: desc.update({'template':template})
     
-    if show and not template:
-        core_window(ui=ui,name=name,title=title,module=module,show=show,template=template)   
+    # if show and not template:
+    #     core_window(ui=ui,name=name,title=title,module=module,show=show,template=template)   
     update_config(workdir,{'windows' : [ desc ]})
 
 @app.command( help='Настройка окна по имени класса')

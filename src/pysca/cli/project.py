@@ -5,7 +5,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Optional, List, Dict, Any
 from pysca import app as _app, log
-from pysca.config import init_env,update_config,config
+from pysca.config import init_env,update_config,config,merge_config
 from pathlib import Path
 from typing import Dict,Any,cast
 from ruamel.yaml import YAML
@@ -31,32 +31,13 @@ def __load_template(base:Path, template_file: str)->Template:
 
     return template
 
-def __merge_config(base: Dict[str,Any], new: dict):
-    if base is None: return new
-    for key, value in new.items():
-        if (
-            key in base
-            and isinstance(base[key], dict)
-            and isinstance(value, dict)
-        ):
-            __merge_config(base[key], value)
-        elif (
-            key in base 
-            and isinstance(base[key],list)
-            and isinstance(value,list)
-        ):
-            base[key]+= value
-            base[key] = list(set(base[key]))
-        else:
-            base[key] = value
-
 def __update_yaml(target_path:Path, target_yaml:Dict[str,Any]):
     if target_path.exists():
         data = yaml.load(target_path.read_text())
     else:
-        data = target_yaml
+        data = { }
 
-    __merge_config(data,target_yaml)
+    merge_config(data,target_yaml)
     
     target_path.parent.mkdir(parents=True,exist_ok=True)
     with target_path.open("w+") as f:
@@ -83,6 +64,20 @@ def init_grafana(
         except Exception as e:
             log.warning(f'При создании из шаблона {file} в {target} что-то пошло не так: {e}')
 
+@app.callback(invoke_without_command=True,no_args_is_help=True)
+def main(
+    ctx: typer.Context,
+    qtapi: str = typer.Option(None,help='Выбор используемой привязки pyqt5/6/pyside2/pyside6',envvar='QT_API'),
+    workdir: Path = typer.Option(None,'-w','--workdir',dir_okay=True,resolve_path=True,help='Рабочий каталог проекта'),
+):
+    ctx.ensure_object(dict)
+    
+    if workdir:
+        os.environ['PYSCAWORKDIR'] = str(workdir)
+    
+    if qtapi:
+        os.environ['QT_API'] = qtapi
+    
 @app.command(help='Настройка/инициализация проекта')
 def init(
     grafana: str = typer.Option(None,help='Инициализация grafana + opentsdb для исторических данных'), 

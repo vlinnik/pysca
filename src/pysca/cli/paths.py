@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List,Optional,Any,Dict
 from pysca.config import config,init_env,update_config
 
-app = typer.Typer(name='paths',help='Настройка путей и расположения управляющих файлов проекта')
+app = typer.Typer(name='paths',help='Настройка путей и расположения управляющих файлов проекта',no_args_is_help=True)
 
 @app.command( help='Настройка путей и расположения управляющих файлов проекта' )
 def set(ctx: typer.Context, 
