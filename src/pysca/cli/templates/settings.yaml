@@ -13,3 +13,8 @@ paths:                      # настройка путей проекта
   forms: {{ forms }}        # где формы лежат. по умолчанию в ${workdir}/ui
   widgets: {{ widgets}}     # где widget-ы лежат. по умолчанию в ${workdir}/widgets
   logic: .
+
+windows:
+- name: Home
+  show: true
+  ui: home.ui

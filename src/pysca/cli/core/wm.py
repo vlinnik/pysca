@@ -227,3 +227,11 @@ def view(*_,
 
     if name: _wins[name] = win
     return name or '',win
+
+def cleanup():
+    from qtpy.QtWidgets import QWidget
+    for w in _wins.values():
+        if isinstance(w,QWidget):
+            w.close( )
+            w.deleteLater()
+            del w

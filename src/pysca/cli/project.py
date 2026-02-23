@@ -224,6 +224,9 @@ def run(
         if QApplication.instance():
             _app.start(ctx, use_asyncio=asyncio)
 
+        from pysca.cli.core.wm import cleanup as wm_cleanup
+        wm_cleanup()
+
         if simulator:
             from pysca.cli.core.simulator import close as stop_simulator
             stop_simulator()
