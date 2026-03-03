@@ -106,6 +106,7 @@ def __load_config(workdir: Path)->Dict[str,Any]:
                 ))
     else:
         init_config(Config())
+        return {}
     return conf
 
 def init_env(workdir: Path)->Dict[str,Any]:

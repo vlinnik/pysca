@@ -110,7 +110,7 @@ def init(
     
     if grafana:
         init_grafana(suffix=suffix or cwd.name.lower(),password=password,networks=networks)
-        typer.echo(f'Файл {cwd.joinpath('docker-compose.yaml')} обновлен')
+        typer.echo(f'Файл {cwd.joinpath("docker-compose.yaml")} обновлен')
         settings.update( { 'opentsdb': { 'host':'localhost','port':4242}} )
     elif 'opentsdb' in settings :
         settings.pop('opentsdb')
