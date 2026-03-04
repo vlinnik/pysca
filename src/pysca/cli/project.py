@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from types import ModuleType
 from typing import Optional, List, Dict, Any
+from importlib import metadata
 from pysca import app as _app, log
 from pysca.config import init_env,update_config,config,merge_config
 from pathlib import Path
@@ -122,8 +123,24 @@ def run(
     dry: bool = typer.Option(False, help='Просто проверка возможности запуска'),
     simulator: bool = typer.Option(False, help='Запуск в режиме имитации'),
     asyncio: bool = typer.Option(False, help='Использовать asycio QEventLoop'),
-    workdir: Path = typer.Option(envvar='PYSCAWORKDIR', help='Где расположен конфигурационный файл проекта')
+    workdir: Optional[Path] = typer.Option(default=None, envvar='PYSCAWORKDIR', help='Где расположен конфигурационный файл проекта'),
+    name: Optional[str] = typer.Argument(None,help="Имя проекта для запуска")
 ):
+
+    if name is not None:
+        eps = metadata.entry_points().select(group="pysca.projects")
+        project = {ep.name: ep for ep in eps}.get(name)
+        if project:
+            get_workdir = project.load( )
+            datadirs = get_workdir( )
+            if hasattr(datadirs,'_paths'):
+                workdir = Path(next(iter(datadirs._paths)))
+            else:
+                workdir = Path(datadirs)
+    
+    if not workdir: 
+        raise typer.BadParameter( "Нужно указать либо аргумент name, либо опцию --workdir/-w (или переменную окружения PYSCAWORKDIR)." )
+        
     settings = init_env(workdir)
     main_conf: dict = settings.get('main', {})
     stdout = main_conf.get('stdout')
@@ -230,3 +247,11 @@ def run(
         if simulator:
             from pysca.cli.core.simulator import close as stop_simulator
             stop_simulator()
+
+@app.command(help='Список установленных проектов')
+def list():
+    eps = metadata.entry_points().select(group="pysca.projects")
+    result = {}
+    for ep in eps:
+        typer.echo(ep.name)
+    

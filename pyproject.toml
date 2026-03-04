@@ -47,3 +47,5 @@ dependencies = ['qtpy', 'sqlalchemy','click','opentsdb_client','grafana_client',
 
 [project.scripts]
 pysca = "pysca.cli.__main__:entry"
+
+[project.entry-points."pysca.projects"] 
