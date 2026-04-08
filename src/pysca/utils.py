@@ -81,6 +81,6 @@ class LinearScale(Filter):
     @decimals.setter
     def decimals(self,decimals):
         try:
-            self._decimals = decimals
+            self._decimals = int(decimals)
         except:
             pass

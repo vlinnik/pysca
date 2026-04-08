@@ -241,6 +241,10 @@ def run(
         if QApplication.instance():
             _app.start(ctx, use_asyncio=asyncio)
 
+        for m in modules:
+            if hasattr(m, 'on_stop'):
+                m.on_stop()
+
         from pysca.cli.core.wm import cleanup as wm_cleanup
         wm_cleanup()
 
