@@ -56,9 +56,9 @@ class QObjectPropertyBinding():
         elif input and mp.hasNotifySignal():
             self.connections.append( getattr(obj,mp.notifySignal().name().data().decode()).connect( input ) )
 
-        self.dynamic = False
-        if input and not mp.isValid() and prop in obj.dynamicPropertyNames():
-            self.dynamic = True
+        self.dynamic = prop in obj.dynamicPropertyNames()
+        # if input and not mp.isValid():
+        #     self.dynamic = True
 
         self.mp:QMetaProperty = mp
         self.obj:QObject = obj
