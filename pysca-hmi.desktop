@@ -1,0 +1,9 @@
+[Desktop Entry]
+Exec=pysca
+Name=PYSCA-HMI 
+Type=Application
+Icon=pysca-hmi
+Version=1.0
+Terminal=true
+Comment=PYSCA-HMI
+StartupNotify=true

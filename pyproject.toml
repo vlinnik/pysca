@@ -49,3 +49,6 @@ dependencies = ['qtpy', 'sqlalchemy','click','opentsdb_client','grafana_client',
 pysca = "pysca.cli.__main__:entry"
 
 [project.entry-points."pysca.projects"] 
+
+#[tool.setuptools.data-files]
+#"share/applications" = ["pysca-hmi.desktop"]

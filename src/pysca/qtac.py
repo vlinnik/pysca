@@ -3,6 +3,7 @@ from qtpy.QtWidgets import QGraphicsBlurEffect,QAbstractButton,QLineEdit
 from typing import Callable,cast,Optional,Dict,Any,List
 from .flexeffect import FlexEffect
 from .bindable import Property
+import math 
 
 class QObjectDynamicPropertyHelper(QObject):
     def __init__(self, parent:QObject = None):
@@ -56,8 +57,8 @@ class QObjectPropertyBinding():
         elif input and mp.hasNotifySignal():
             self.connections.append( getattr(obj,mp.notifySignal().name().data().decode()).connect( input ) )
 
-        self.dynamic = prop in obj.dynamicPropertyNames()
-        # if input and not mp.isValid():
+        self.dynamic = not mp.isValid() and prop in obj.dynamicPropertyNames() #prop in obj.dynamicPropertyNames() and not mp.isValid()
+        # if input and not mp.isValid() and prop in obj.dynamicPropertyNames():
         #     self.dynamic = True
 
         self.mp:QMetaProperty = mp
@@ -85,7 +86,8 @@ class QObjectPropertyBinding():
         if self.mp.isValid():
             self.mp.write(self.obj,value)
         elif self.dynamic:
-            self.obj.setProperty(self.prop,value)
+            if not math.isnan(value) and value is not None:
+                self.obj.setProperty(self.prop,value)
     
     def quality(self,good: bool):
         if self._isWidget:
