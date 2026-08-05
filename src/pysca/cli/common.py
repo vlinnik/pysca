@@ -90,7 +90,7 @@ def load_windows(ctx,pages,modules)->List['QWidget']:
     return wins
 
 @click.command(help='Настройка основных параметров')
-@click.option('--conf', type=click.Path(exists=True), default='default.scada', help='Путь к файлу конфигурации (default.scada)')
+@click.option('--conf', type=click.Path(), default='default.scada', help='Путь к файлу конфигурации (default.scada)')
 @click.option('--opentsdb', nargs=1,metavar='<ip>[:port]',  help='IP-адрес и порт OpenTSDB')
 @click.option('--grafana', nargs=1,metavar='<ip>[:port]',  help='IP-адрес и порт Grafana')
 @click.option('--grafana-key',nargs=1, metavar='<grafana api admin/editor token>',help='API-Token для записи событий в grafana')
@@ -161,7 +161,8 @@ def start(ctx,conf,opentsdb,grafana,grafana_key,simulator,with_asyncio,paths,mod
         
     if simulator:
         import subprocess
-        ctx.obj['logic'] = subprocess.Popen(["python3", "src/krax.py"])
+        #TODO: simulator должен откуда то узнать что запускать и с какими параметрами
+        ctx.obj['logic'] = subprocess.Popen(["python3", "../../plc/krax.py","--conf_dir","../../plc/data"])
 
 @click.command(help='Запуск в окне с навигацией, панелью инструментов')
 @click.argument('pages',nargs=-1, type=click.Path(exists=True),required=False)
