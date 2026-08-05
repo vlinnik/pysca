@@ -122,8 +122,9 @@ class TCPClient():
             self.attention(e,'TCPClient')
             self.close()
         finally:
-            if self.sock is None: 
-                return
+            pass
+        if self.sock is None: 
+            return
             
         try:
             self.routine()
