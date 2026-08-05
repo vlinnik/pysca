@@ -15,13 +15,14 @@ write_to = "src/pysca/__version__.py"
 
 [tool.setuptools]
 include-package-data = true
+py-modules = ["pyscaplugin","pyscawidgets","pysca","animation","runtimetrend"] 
 
 [tool.setuptools.packages.find]
 where = ["src"]
 exclude = []
 
 [tool.setuptools.package-data]
-pysca = ["**/*.scada", "**/*.yaml", "**/*.ui", "**/LICENCE","**/README.md", "**/*.toml"]
+pysca = ["data/*","**/*.scada", "**/*.yaml", "**/*.ui", "**/LICENCE","**/README.md", "**/*.toml"]
 
 [project]
 dynamic = ["version"]
@@ -38,7 +39,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = ['qtpy', 'sqlalchemy','click','opentsdb_client','grafana_client','pystray','watchdog','pyyaml','qasync']
+dependencies = ['qtpy', 'sqlalchemy','click','opentsdb_client','grafana_client','pystray','watchdog','pyyaml','qasync','PythonQwt','loguru','typer','ruamel.yaml','jinja2']
 
 [project.urls]
 "Homepage" = "https://github.com/vlinnik/pysca"
@@ -46,3 +47,8 @@ dependencies = ['qtpy', 'sqlalchemy','click','opentsdb_client','grafana_client',
 
 [project.scripts]
 pysca = "pysca.cli.__main__:entry"
+
+[project.entry-points."pysca.projects"] 
+
+#[tool.setuptools.data-files]
+#"share/applications" = ["pysca-hmi.desktop"]

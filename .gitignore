@@ -17,3 +17,4 @@ debian/python3-pysca.substvars
 debian/debhelper-build-stamp
 _version.py
 __version__.py
+*.egg-info

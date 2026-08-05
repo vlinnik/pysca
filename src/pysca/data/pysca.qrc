@@ -1,0 +1,7 @@
+<RCC>
+  <qresource prefix="PYSCA">
+    <file alias="movie.mng">movie.mng</file>
+    <file alias="movie.webp">movie.webp</file>
+    <file alias="movie.gif">movie.gif</file>
+  </qresource>
+</RCC>

@@ -1,7 +1,9 @@
 from typing import Any, List, Type
 from enum import IntEnum
-from .bindable import Property, Filter
-from qtpy.QtCore import QObject, QThread, Signal, Slot, QTimer,QCoreApplication
+from pysca import log
+from pysca.bindable import Property, Filter
+from pysca.helpers import Signal,Slot
+from qtpy.QtCore import QObject, QThread, QTimer,QCoreApplication
 
 class JournalEvent:
     class Sources(IntEnum):
@@ -109,6 +111,7 @@ class MetricJournal(QObject):
         
     @Slot()
     def start(self):
+        log.info(f'Запуск журналирования: {self}')
         _timer = QTimer(self)
         _timer.timeout.connect(self.flush)
         _timer.start(60000)
@@ -117,6 +120,7 @@ class MetricJournal(QObject):
     @Slot()
     def stop(self):
         if self._thread is not None:
+            log.info('Останов журналирования: {self}')
             self._timer.stop()
             self._thread.quit( )
 
@@ -127,3 +131,5 @@ class MetricJournal(QObject):
         self.moveToThread(_thread)
         _thread.start( )
 
+    def __repr__(self):
+        return f"<{self.__class__.__name__}>"

@@ -25,7 +25,7 @@ def run(ctx):
         app.devices[dname].start( )
 
     if 'qt_api' in ctx.obj and API_NAME not in ctx.obj['qt_api']:
-        click.echo(f'   Используется backend {API_NAME}, указаны возможные варианты {ctx.obj['qt_api']}')
+        click.echo(f'   Используется backend {API_NAME}, указаны возможные варианты {ctx.obj["qt_api"]}')
         
     qApp = QApplication.instance()
     manager.quit = qApp.quit if qApp else None

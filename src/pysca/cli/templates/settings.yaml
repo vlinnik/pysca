@@ -1,0 +1,20 @@
+# Файл настроек запуска PYSCA - визуализации 
+main:
+  stdout: "DEBUG:INFO"
+  stderr: "WARNING:"
+
+paths:                      # настройка путей проекта
+  workspace: ../../..       # рабочее пространство проекта (относительно workdir)
+  modules:
+  - ..
+  - ../..
+  simulator: .              # рабочий каталог запуска логик(и) имитаций относительно workspace
+  resources: .              # где искать файлы ресурсов относительно workdir
+  forms: {{ forms }}        # где формы лежат. по умолчанию в ${workdir}/ui
+  widgets: {{ widgets}}     # где widget-ы лежат. по умолчанию в ${workdir}/widgets
+  logic: .
+
+windows:
+- name: Home
+  show: true
+  ui: home.ui

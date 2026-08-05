@@ -1,40 +1,26 @@
-import click
-from pysca import app
-from typing import cast
+import typer
+from typing import List,Dict,Any
+from pathlib import Path
+from pysca.cli import args_parse
+from pysca.config import init_env,update_config
+from pysca.cli.core.devices import device as core_device
 
-def pyplc_device(*_,device,port=9004,scan=100,**kwargs):
-    from pysca.device import PYPLC
-    return PYPLC(device,port=int(port),scan=int(scan))
+app = typer.Typer(name='devices',help='Настройка устройств ввода-вывода',no_args_is_help=True)
 
-def dummy_device(*args, **kwargs):
-    pass
-
-@click.group(invoke_without_command=True,help='Настройка устройства ввода-вывода')
-@click.option('--name',help='Имя устройства (PLC etc)')
-@click.option('--type',help='Используемый драйвер (pyplc etc)')
-@click.option('--args',multiple=True)
-@click.pass_context
-def device(ctx,name,type,args):
-    DEVICE_HANDLES = {
-        'PYPLC' : pyplc_device
-    }
-    params = {}
+@app.command(help='Настройка устройства ввода-вывода')
+def add( 
+    ctx: typer.Context, 
+    name: str = typer.Argument(...,help='Имя устройства') ,
+    type: str = typer.Option(...,help='Драйвер устройства'),
+    test: bool = typer.Option(False,help='Попробовать загрузить'), 
+    args: List[str] = typer.Option(None,'--arg','--args',help='Параметры устройства в виде param=value'),
+    workdir: Path = typer.Option(envvar='PYSCAWORKDIR',help='Где расположен конфигурационный файл проекта'),
+):
+    init_env(workdir)
+    _args = args_parse(args)
     
-    for arg in args:
-        if '=' in arg:
-            k, v = arg.split('=', 1)
-            params[k.strip()] = v.strip()
+    desc:Dict[str,Any] = { 'name':name,'type':type }
+    if _args: desc.update({'args':_args})
     
-    if name not in app.devices:
-        if type.upper() in DEVICE_HANDLES:
-            d = DEVICE_HANDLES[type.upper()](**params)
-        else:
-            d = dummy_device(**params)
-        
-        if d:
-            app.devices[name] = d
-            click.echo(f'   Добавлено устройство {name}')
-        else:
-            click.secho(f'  Не удалось создать устройство {name}',err=True,fg='red')
-    else:
-        click.echo(click.style(f'   Не удалось создать устройство либо уже есть {name}',fg='red'),err=True)
+    if test and core_device(name,type,_args or {} ) is None: return typer.Exit(1) 
+    update_config(workdir,{'devices' : [ desc ]})

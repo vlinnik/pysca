@@ -1,8 +1,9 @@
 from qtpy.QtCore import QObject,QMetaObject,QEvent,QDynamicPropertyChangeEvent,QMetaProperty
 from qtpy.QtWidgets import QGraphicsBlurEffect,QAbstractButton,QLineEdit
-from typing import Callable,cast,Optional,Dict,Any
+from typing import Callable,cast,Optional,Dict,Any,List
 from .flexeffect import FlexEffect
 from .bindable import Property
+import math 
 
 class QObjectDynamicPropertyHelper(QObject):
     def __init__(self, parent:QObject = None):
@@ -56,9 +57,9 @@ class QObjectPropertyBinding():
         elif input and mp.hasNotifySignal():
             self.connections.append( getattr(obj,mp.notifySignal().name().data().decode()).connect( input ) )
 
-        self.dynamic = False
-        if input and not mp.isValid() and prop in obj.dynamicPropertyNames():
-            self.dynamic = True
+        self.dynamic = not mp.isValid() and prop in obj.dynamicPropertyNames() #prop in obj.dynamicPropertyNames() and not mp.isValid()
+        # if input and not mp.isValid() and prop in obj.dynamicPropertyNames():
+        #     self.dynamic = True
 
         self.mp:QMetaProperty = mp
         self.obj:QObject = obj
@@ -71,24 +72,30 @@ class QObjectPropertyBinding():
             self.clean = None
             
         self.obj.destroyed.connect(self.cleanup)
+        self._on_destroy: List[Callable[['QObjectPropertyBinding'],None]] = [ ]
+        
+    def on_destroy(self,callback: Callable[['QObjectPropertyBinding'],None]):
+        self._on_destroy.append(callback)
                 
     def update(self,value):
         """Изменить свойство 
 
         Args:
             value (Any): новое значения для свойства
-        """
-        if self._isWidget:
-            effect:FlexEffect = self.obj.property('_effect')
-            if effect:
-                if value is None: effect.push( QGraphicsBlurEffect(self.obj)  )
-                if value is not None: effect.pop()
-            
+        """            
         if self.mp.isValid():
             self.mp.write(self.obj,value)
         elif self.dynamic:
-            self.obj.setProperty(self.prop,value)
-        
+            if not math.isnan(value) and value is not None:
+                self.obj.setProperty(self.prop,value)
+    
+    def quality(self,good: bool):
+        if self._isWidget:
+            effect:FlexEffect = self.obj.property('_effect')
+            if effect:
+                if not good: effect.push( QGraphicsBlurEffect(self.obj)  )
+                elif good: effect.pop()
+                
     def cleanup(self):
         """После вызова cleanup QObjectPropertyBinder-instance можно удалять. 
         """
@@ -102,6 +109,8 @@ class QObjectPropertyBinding():
         
         if self.clean:
             self.clean(self.update)
+            
+        for d in self._on_destroy: d( self )    #предупреждаем что сейчас будем удалены
             
         del self.obj
         del self.mp
@@ -140,7 +149,9 @@ class QObjectSignalHandler():
     """
     def __init__(self,obj: QObject, signal: str, code: str , globals: Callable[[],dict], ctx = None,this = None,user_ctx:Dict[str,Any] = { },**kwargs) -> None:
         mo = obj.metaObject()
-        ms = mo.method( mo.indexOfSignal(QMetaObject.normalizedSignature(signal) ) )
+        norm_signature = QMetaObject.normalizedSignature(signal).data().decode()
+        index =  mo.indexOfSignal( norm_signature )
+        ms = mo.method( index )
         self.code = code
         self.obj = obj           #тот чье событие обслуживается
         self.ctx = ctx           #все переменнные (ввода-вывода)
@@ -168,6 +179,6 @@ class QObjectSignalHandler():
             args[arg[0]] = arg[1]
         args['self'] = self.obj
         args['this'] = self.this
-        args.update( self.user_ctx )
+        args.update( self.user_ctx or { } )
         
         exec( self.code, dict(self.ctx, **self.globals()) , args )
