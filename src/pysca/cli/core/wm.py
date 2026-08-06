@@ -109,13 +109,17 @@ def navbar(*args,
         pages: Optional[List[str]] = None ,
         tools: Optional[List[str]] = None,
         modules: Optional[List[str]] = None,
+        multihead: Optional[bool] = None,
         dry: bool = False,
         **kwargs
         ):
     global _wins
     __prepare_qt( )
         
-    import pysca.navbar as navbar
+    if multihead is True:
+        import pysca.multihead as navbar
+    else:
+        import pysca.navbar as navbar
     for w in pages or []:
         if w in _wins:
             navbar.append(_wins[w])
